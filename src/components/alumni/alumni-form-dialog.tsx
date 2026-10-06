@@ -60,7 +60,7 @@ export function AlumniFormDialog({
     resolver: zodResolver(alumniSchema),
     defaultValues: {
       name: "", email: "", phone: "", gender: "Male", generation: "12", courseCode: "SP", education: "Bachelor",
-      university: UNIVERSITIES[0], employmentStatus: "employed", industry: INDUSTRIES[0], salaryRange: SALARY_RANGES[1],
+      university: UNIVERSITIES[0], employmentStatus: "Local SW Developer", industry: INDUSTRIES[0], salaryRange: SALARY_RANGES[1],
       company: "", jobTitle: "", location: "Phnom Penh",
     },
   });
@@ -110,7 +110,7 @@ export function AlumniFormDialog({
             </div>
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Employment</p>
             <div className="grid gap-4 sm:grid-cols-2">
-              <SelectField control={form.control} name="employmentStatus" label="Status" options={EMPLOYMENT_STATUSES.map((s) => ({ value: s, label: s.charAt(0).toUpperCase() + s.slice(1) }))} />
+              <SelectField control={form.control} name="employmentStatus" label="Employment status" options={EMPLOYMENT_STATUSES.map((s) => ({ value: s, label: s }))} />
               <SelectField control={form.control} name="industry" label="Industry" options={INDUSTRIES.map((i) => ({ value: i, label: i }))} />
               <SelectField control={form.control} name="salaryRange" label="Salary range" options={SALARY_RANGES.map((s) => ({ value: s, label: s }))} />
               <FormField control={form.control} name="company" render={({ field }) => (

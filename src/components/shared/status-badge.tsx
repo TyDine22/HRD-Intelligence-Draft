@@ -26,15 +26,29 @@ export function RiskBadge({ level }: { level: RiskLevel }) {
   return <Badge variant={map[level]}>{level}</Badge>;
 }
 
+const EMPLOYMENT_COLORS: Record<EmploymentStatus, string> = {
+  "Local SW Developer": "var(--chart-1)",
+  "International SW Developer": "var(--chart-2)",
+  Banks: "var(--chart-4)",
+  "Government Officials": "var(--chart-7)",
+  "Full Scholarship Abroad": "var(--chart-3)",
+  "IT Instructor in HRD Center": "var(--chart-5)",
+  Other: "var(--chart-6)",
+};
+
+/** Employment status badge – uses the same colour as the alumni achievements chart. */
 export function EmploymentBadge({ status }: { status: EmploymentStatus }) {
-  const map: Record<EmploymentStatus, { label: string; variant: "success" | "info" | "warning" | "danger" }> = {
-    employed: { label: "Employed", variant: "success" },
-    "self-employed": { label: "Self-employed", variant: "info" },
-    studying: { label: "Studying", variant: "warning" },
-    unemployed: { label: "Unemployed", variant: "danger" },
-  };
-  const m = map[status];
-  return <Badge variant={m.variant}>{m.label}</Badge>;
+  const color = EMPLOYMENT_COLORS[status] ?? "var(--chart-7)";
+  return (
+    <Badge
+      variant="outline"
+      className="gap-1.5 border-transparent"
+      style={{ background: `color-mix(in oklch, ${color} 14%, transparent)`, color: `color-mix(in oklch, ${color} 80%, var(--foreground))` }}
+    >
+      <span className="size-1.5 rounded-full" style={{ background: color }} />
+      {status}
+    </Badge>
+  );
 }
 
 export function ScoreBadge({ score }: { score: number }) {

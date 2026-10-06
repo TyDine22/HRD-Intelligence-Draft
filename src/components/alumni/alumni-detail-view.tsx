@@ -43,7 +43,7 @@ export function AlumniDetailView({ id }: { id: string }) {
     updateAlumni(a.id, {
       name: v.name, email: v.email, phone: v.phone, gender: v.gender, generation: Number(v.generation), courseCode: v.courseCode,
       education: v.education, university: v.university, employmentStatus: v.employmentStatus, industry: v.industry,
-      salaryRange: v.employmentStatus === "unemployed" || v.employmentStatus === "studying" ? "—" : v.salaryRange, jobs,
+      salaryRange: v.employmentStatus === "Full Scholarship Abroad" ? "—" : v.salaryRange, jobs,
       lastUpdated: new Date().toISOString().slice(0, 10),
     });
     setEditOpen(false);

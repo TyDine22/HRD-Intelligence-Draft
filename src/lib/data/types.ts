@@ -130,7 +130,18 @@ export interface FeedbackEntry {
   date: string;
 }
 
-export type EmploymentStatus = "employed" | "self-employed" | "studying" | "unemployed";
+/**
+ * Official alumni employment status (the categories reported in the HRD
+ * achievements chart). Every alumni record carries exactly one.
+ */
+export type EmploymentStatus =
+  | "Local SW Developer"
+  | "International SW Developer"
+  | "Banks"
+  | "Government Officials"
+  | "Full Scholarship Abroad"
+  | "IT Instructor in HRD Center"
+  | "Other";
 
 export interface Job {
   id: string;

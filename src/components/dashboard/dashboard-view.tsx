@@ -20,6 +20,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { KpiCard } from "@/components/shared/kpi-card";
 import { RiskBadge } from "@/components/shared/status-badge";
 import { ChartCard, DonutChart, SimpleBarChart, SimpleLineChart } from "@/components/charts/charts";
+import { AlumniAchievementChart } from "@/components/charts/alumni-achievement-chart";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -30,6 +31,7 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { useAppStore } from "@/lib/store/app-store";
 import { STUDENTS, GENERATIONS, initials } from "@/lib/data/students";
 import { courseByCode } from "@/lib/data/users";
+import { EMPLOYED_STATUSES } from "@/lib/data/alumni";
 import { ATTENDANCE, RISK_ASSESSMENTS, attendanceSeries, getStudentStats } from "@/lib/data/academics";
 import { formatDate } from "@/lib/utils/format";
 import { TODAY } from "@/lib/data/seed";
@@ -109,15 +111,7 @@ export function DashboardView() {
     []
   );
 
-  const employment = React.useMemo(() => {
-    const employed = alumni.filter((a) => a.employmentStatus === "employed").length;
-    const unemployed = alumni.filter((a) => a.employmentStatus === "unemployed").length;
-    return [
-      { name: "Employed", value: employed },
-      { name: "Unemployed", value: unemployed },
-      { name: "Other", value: alumni.length - employed - unemployed },
-    ];
-  }, [alumni]);
+  const employedCount = React.useMemo(() => alumni.filter((a) => EMPLOYED_STATUSES.includes(a.employmentStatus)).length, [alumni]);
 
   return (
     <div className="space-y-6">
@@ -155,11 +149,11 @@ export function DashboardView() {
         <KpiCard label="Active" value={counts.active} hint={`${counts.total ? Math.round((counts.active / counts.total) * 100) : 0}% of total`} icon={<AcademicCapIcon />} tone="success" />
         <KpiCard label="Dropped" value={counts.dropped} hint="require exit review" icon={<UserMinusIcon />} tone="danger" />
         <KpiCard label="Graduated" value={counts.graduated} hint="completed the programme" icon={<UserGroupIcon />} tone="default" />
-        {isAdmin && <KpiCard label="Total alumni" value={alumni.length} hint={`${employment[0].value} employed`} icon={<BriefcaseIcon />} tone="warning" />}
+        {isAdmin && <KpiCard label="Total alumni" value={alumni.length} hint={`${employedCount} employed`} icon={<BriefcaseIcon />} tone="warning" />}
       </div>
 
       {/* Student & attendance analytics */}
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-[1fr_1fr_1.8fr]">
         <ChartCard title="Gender distribution" description={generation === "all" ? "All generations" : `Generation ${generation}`}>
           <DonutChart data={gender} centerLabel={{ value: String(students.length), label: "students" }} />
         </ChartCard>
@@ -173,6 +167,7 @@ export function DashboardView() {
         <ChartCard
           title="Attendance rate over time"
           description="Share of students present or late per period"
+          className="lg:col-span-2 xl:col-span-1"
           action={
             <Tabs value={granularity} onValueChange={(v) => setGranularity(v as Granularity)}>
               <TabsList className="h-8">
@@ -261,15 +256,20 @@ export function DashboardView() {
 
         {isAdmin && (
           <div className="grid gap-4">
-            <ChartCard title="Students by generation" description="Generation overview">
-              <SimpleBarChart data={byGeneration} height={180} />
-            </ChartCard>
-            <ChartCard title="Alumni employment status" description={`${alumni.length} alumni on record`}>
-              <SimpleBarChart data={employment} layout="horizontal" height={170} colorByName />
+            <ChartCard title="Students by generation" description="Generation overview" className="h-full">
+              <SimpleBarChart data={byGeneration} height={360} />
             </ChartCard>
           </div>
         )}
       </div>
+
+      {isAdmin && (
+        <ChartCard title="Alumni employment status" description="Official employment status of every graduate, as recorded in Alumni management">
+          <div className="px-2 pt-1">
+            <AlumniAchievementChart alumni={alumni} />
+          </div>
+        </ChartCard>
+      )}
 
       {/* Top students – ranked lists */}
       <section>

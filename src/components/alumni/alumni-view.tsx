@@ -10,7 +10,8 @@ import { SearchInput } from "@/components/shared/search-input";
 import { Pagination } from "@/components/shared/pagination";
 import { EmptyState } from "@/components/shared/empty-state";
 import { EmploymentBadge } from "@/components/shared/status-badge";
-import { ChartCard, DonutChart, SimpleBarChart } from "@/components/charts/charts";
+import { ChartCard, SimpleBarChart } from "@/components/charts/charts";
+import { AlumniAchievementChart } from "@/components/charts/alumni-achievement-chart";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -23,7 +24,7 @@ import { usePagination } from "@/hooks/use-pagination";
 import { useAppStore } from "@/lib/store/app-store";
 import { useToast } from "@/hooks/use-toast";
 import { COURSES, courseByCode } from "@/lib/data/users";
-import { ALUMNI_GENERATIONS, EMPLOYMENT_STATUSES, INDUSTRIES, SALARY_RANGES } from "@/lib/data/alumni";
+import { ALUMNI_GENERATIONS, EMPLOYED_STATUSES, EMPLOYMENT_STATUSES, INDUSTRIES, SALARY_RANGES } from "@/lib/data/alumni";
 import { initials } from "@/lib/data/students";
 import { formatDate } from "@/lib/utils/format";
 import { exportCsv } from "@/lib/utils/export";
@@ -60,20 +61,19 @@ export function AlumniView() {
   React.useEffect(() => setPage(1), [query, generation, course, employment, industry, salary, education, setPage]);
 
   const stats = React.useMemo(() => {
-    const employed = alumni.filter((a) => a.employmentStatus === "employed" || a.employmentStatus === "self-employed").length;
+    const employed = alumni.filter((a) => EMPLOYED_STATUSES.includes(a.employmentStatus)).length;
     const pending = alumni.filter((a) => a.updateRequest?.status === "pending").length;
-    const byStatus = EMPLOYMENT_STATUSES.map((s) => ({ name: s, value: alumni.filter((a) => a.employmentStatus === s).length }));
     const byIndustry = INDUSTRIES.map((i) => ({ name: i, value: alumni.filter((a) => a.industry === i).length })).filter((x) => x.value > 0).sort((a, b) => b.value - a.value);
     const bySalary = SALARY_RANGES.map((s) => ({ name: s, value: alumni.filter((a) => a.salaryRange === s).length }));
     const byGen = ALUMNI_GENERATIONS.map((g) => ({ name: `Gen ${g}`, value: alumni.filter((a) => a.generation === g).length }));
-    return { employed, pending, byStatus, byIndustry, bySalary, byGen, rate: alumni.length ? Math.round((employed / alumni.length) * 100) : 0 };
+    return { employed, pending, byIndustry, bySalary, byGen, rate: alumni.length ? Math.round((employed / alumni.length) * 100) : 0 };
   }, [alumni]);
 
   const create = (v: AlumniValues) => {
     const created = addAlumni({
       name: v.name, email: v.email, phone: v.phone, gender: v.gender, generation: Number(v.generation), courseCode: v.courseCode,
       education: v.education, university: v.university, employmentStatus: v.employmentStatus, industry: v.industry,
-      salaryRange: v.employmentStatus === "unemployed" || v.employmentStatus === "studying" ? "—" : v.salaryRange,
+      salaryRange: v.employmentStatus === "Full Scholarship Abroad" ? "—" : v.salaryRange,
       jobs: v.company ? [{ id: `JOB-${Date.now()}`, company: v.company, title: v.jobTitle ?? "", industry: v.industry, location: v.location ?? "", from: new Date().toISOString().slice(0, 10), to: null }] : [],
       documents: [], lastUpdated: new Date().toISOString().slice(0, 10), updateRequest: null,
     });
@@ -100,7 +100,7 @@ export function AlumniView() {
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard label="Total alumni" value={alumni.length} hint={`${ALUMNI_GENERATIONS.length} generations`} icon={<UserGroupIcon />} tone="primary" />
-        <KpiCard label="Employment rate" value={`${stats.rate}%`} hint={`${stats.employed} employed or self-employed`} icon={<BriefcaseIcon />} tone="success" />
+        <KpiCard label="Employment rate" value={`${stats.rate}%`} hint={`${stats.employed} employed · excludes scholarship & other`} icon={<BriefcaseIcon />} tone="success" />
         <KpiCard label="Pending update requests" value={stats.pending} hint="awaiting alumni response" icon={<EnvelopeIcon />} tone={stats.pending ? "warning" : "default"} />
         <div className="bg-card flex items-center justify-between gap-3 rounded-xl border p-4 shadow-sm">
           <div>
@@ -132,8 +132,8 @@ export function AlumniView() {
                     <SelectContent><SelectItem value="all">All courses</SelectItem>{COURSES.map((c) => <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>)}</SelectContent>
                   </Select>
                   <Select value={employment} onValueChange={setEmployment}>
-                    <SelectTrigger size="sm" className="bg-card w-40"><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="all">All employment</SelectItem>{EMPLOYMENT_STATUSES.map((s) => <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>)}</SelectContent>
+                    <SelectTrigger size="sm" className="bg-card w-52"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="all">All employment status</SelectItem>{EMPLOYMENT_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                   </Select>
                   <Select value={industry} onValueChange={setIndustry}>
                     <SelectTrigger size="sm" className="bg-card w-48"><SelectValue /></SelectTrigger>
@@ -205,7 +205,9 @@ export function AlumniView() {
         </TabsContent>
 
         <TabsContent value="analytics" className="grid gap-4 pt-2 md:grid-cols-2">
-          <ChartCard title="Employment status" description="All alumni"><DonutChart data={stats.byStatus} centerLabel={{ value: `${stats.rate}%`, label: "employed" }} /></ChartCard>
+          <ChartCard title="Employment status" description="Official status of every graduate — the same data shown on the dashboard" className="md:col-span-2">
+            <div className="px-2 pt-1"><AlumniAchievementChart alumni={alumni} /></div>
+          </ChartCard>
           <ChartCard title="Alumni by generation"><SimpleBarChart data={stats.byGen} /></ChartCard>
           <ChartCard title="Industry distribution" description="Current or most recent role"><SimpleBarChart data={stats.byIndustry} layout="horizontal" height={280} /></ChartCard>
           <ChartCard title="Salary range" description="Employed and self-employed alumni"><SimpleBarChart data={stats.bySalary} color="var(--chart-2)" /></ChartCard>
@@ -216,4 +218,3 @@ export function AlumniView() {
     </div>
   );
 }
-
