@@ -81,3 +81,18 @@ export const overtimeReportSchema = z.object({
   notes: z.string().max(500).optional(),
 });
 export type OvertimeReportValues = z.infer<typeof overtimeReportSchema>;
+
+export const resetPasswordSchema = z
+  .object({
+    newPassword: z
+      .string()
+      .min(8, "Use at least 8 characters")
+      .regex(/[A-Z]/, "Include an uppercase letter")
+      .regex(/[0-9]/, "Include a number"),
+    confirmPassword: z.string().min(1, "Please confirm the new password"),
+  })
+  .refine((v) => v.newPassword === v.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
+export type ResetPasswordValues = z.infer<typeof resetPasswordSchema>;

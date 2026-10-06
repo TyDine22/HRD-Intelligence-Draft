@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { BrandWordmark } from "@/components/layout/brand";
 import { forgotPasswordSchema, type ForgotPasswordValues } from "@/lib/validation/schemas";
+import { USERS } from "@/lib/data/users";
 
 export function ForgotPasswordForm() {
   const [sentTo, setSentTo] = React.useState<string | null>(null);
@@ -25,6 +26,8 @@ export function ForgotPasswordForm() {
   };
 
   if (sentTo) {
+    const demoUser = USERS.find((u) => u.email.toLowerCase() === sentTo.toLowerCase());
+    const demoLink = demoUser ? `/reset-password?token=demo-${demoUser.id}&email=${encodeURIComponent(demoUser.email)}` : null;
     return (
       <div className="space-y-6 text-center">
         <div className="bg-primary/10 text-primary mx-auto flex size-14 items-center justify-center rounded-full">
@@ -37,6 +40,15 @@ export function ForgotPasswordForm() {
             been sent. The link expires in 30 minutes.
           </p>
         </div>
+        {demoLink && (
+          <div className="rounded-lg border border-dashed p-3 text-left text-xs">
+            <p className="font-semibold">Prototype shortcut</p>
+            <p className="text-muted-foreground mt-0.5">No email is sent in the static demo. Open the link the email would contain:</p>
+            <Button asChild variant="secondary" size="sm" className="mt-2 w-full">
+              <Link href={demoLink}>Open password reset link</Link>
+            </Button>
+          </div>
+        )}
         <Button asChild variant="outline" className="w-full">
           <Link href="/login">
             <ArrowLeftIcon /> Back to sign in
