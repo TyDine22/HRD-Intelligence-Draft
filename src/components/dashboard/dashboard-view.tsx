@@ -5,6 +5,9 @@ import Link from "next/link";
 import {
   AcademicCapIcon,
   ArrowRightIcon,
+  ClockIcon,
+  ComputerDesktopIcon,
+  LanguageIcon,
   BriefcaseIcon,
   ExclamationTriangleIcon,
   TrophyIcon,
@@ -20,13 +23,12 @@ import { ChartCard, DonutChart, SimpleBarChart, SimpleLineChart } from "@/compon
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/lib/auth/auth-context";
 import { useAppStore } from "@/lib/store/app-store";
-import { STUDENTS, GENERATIONS } from "@/lib/data/students";
+import { STUDENTS, GENERATIONS, initials } from "@/lib/data/students";
 import { courseByCode } from "@/lib/data/users";
 import { ATTENDANCE, RISK_ASSESSMENTS, attendanceSeries, getStudentStats } from "@/lib/data/academics";
 import { formatDate } from "@/lib/utils/format";
@@ -156,48 +158,6 @@ export function DashboardView() {
         {isAdmin && <KpiCard label="Total alumni" value={alumni.length} hint={`${employment[0].value} employed`} icon={<BriefcaseIcon />} tone="warning" />}
       </div>
 
-      {/* Top students – ranked lists */}
-      <section>
-        <div className="mb-3 flex items-center gap-2">
-          <TrophyIcon className="text-warning size-5" />
-          <h2 className="font-semibold">Top students</h2>
-          <span className="text-muted-foreground text-xs">
-            {generation === "all" ? "All generations" : `Generation ${generation}`} · ranked lists
-          </span>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <RankedTableCard
-            title="Top 5 · Basic & Advanced courses"
-            description="By course average score"
-            columns={["Rank", "Student name", "Course", "Score"]}
-            rows={ranked.byScore.map((r) => ({
-              id: r.student.id,
-              name: r.student.name,
-              cells: [courseByCode(r.student.courseCode).name, r.value],
-            }))}
-          />
-          <RankedTableCard
-            title="Top 5 · IT students"
-            description="By monthly IT assessment score"
-            columns={["Rank", "Student name", "Score"]}
-            rows={ranked.byIt.map((r) => ({ id: r.student.id, name: r.student.name, cells: [r.value] }))}
-          />
-          <RankedTableCard
-            title="Top 5 · Korean students"
-            description="By Korean language score"
-            columns={["Rank", "Student name", "Score"]}
-            rows={ranked.byKorean.map((r) => ({ id: r.student.id, name: r.student.name, cells: [r.value] }))}
-          />
-          <RankedTableCard
-            title="Top 5 · Extra-class students"
-            description="By approved extra-class hours"
-            columns={["Rank", "Student name", "Extra-class hours"]}
-            rows={ranked.byExtra.map((r) => ({ id: r.student.id, name: r.student.name, cells: [`${r.value} h`] }))}
-            emptyText="No extra-class hours recorded for this selection."
-          />
-        </div>
-      </section>
-
       {/* Student & attendance analytics */}
       <div className="grid gap-4 lg:grid-cols-3">
         <ChartCard title="Gender distribution" description={generation === "all" ? "All generations" : `Generation ${generation}`}>
@@ -310,6 +270,58 @@ export function DashboardView() {
           </div>
         )}
       </div>
+
+      {/* Top students – ranked lists */}
+      <section>
+        <div className="mb-3 flex items-center gap-2">
+          <TrophyIcon className="text-warning size-5" />
+          <h2 className="font-semibold">Top students</h2>
+          <span className="text-muted-foreground text-xs">
+            {generation === "all" ? "All generations" : `Generation ${generation}`} · ranked lists
+          </span>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <RankedCard
+            title="Basic & Advanced courses"
+            description="Top 5 by course average score"
+            icon={<AcademicCapIcon />}
+            accent="var(--chart-1)"
+            valueLabel="Score"
+            rows={ranked.byScore.map((r) => ({
+              id: r.student.id,
+              name: r.student.name,
+              meta: courseByCode(r.student.courseCode).name,
+              value: r.value,
+              display: String(r.value),
+            }))}
+          />
+          <RankedCard
+            title="IT students"
+            description="Top 5 by monthly IT assessment score"
+            icon={<ComputerDesktopIcon />}
+            accent="var(--chart-2)"
+            valueLabel="Score"
+            rows={ranked.byIt.map((r) => ({ id: r.student.id, name: r.student.name, meta: r.student.classroom, value: r.value, display: String(r.value) }))}
+          />
+          <RankedCard
+            title="Korean students"
+            description="Top 5 by Korean language score"
+            icon={<LanguageIcon />}
+            accent="var(--chart-5)"
+            valueLabel="Score"
+            rows={ranked.byKorean.map((r) => ({ id: r.student.id, name: r.student.name, meta: r.student.classroom, value: r.value, display: String(r.value) }))}
+          />
+          <RankedCard
+            title="Extra-class students"
+            description="Top 5 by approved extra-class hours"
+            icon={<ClockIcon />}
+            accent="var(--chart-3)"
+            valueLabel="Hours"
+            rows={ranked.byExtra.map((r) => ({ id: r.student.id, name: r.student.name, meta: r.student.classroom, value: r.value, display: `${r.value} h` }))}
+            emptyText="No extra-class hours recorded for this selection."
+          />
+        </div>
+      </section>
     </div>
   );
 }
@@ -321,13 +333,15 @@ export function DashboardView() {
 interface RankedRow {
   id: string;
   name: string;
-  cells: (string | number)[];
+  meta: string;
+  value: number;
+  display: string;
 }
 
 const MEDALS = [
-  { ribbon: "oklch(0.55 0.2 25)", disc: "oklch(0.82 0.17 85)", rim: "oklch(0.68 0.16 75)", label: "Gold medal" },
-  { ribbon: "oklch(0.52 0.16 262)", disc: "oklch(0.86 0.01 260)", rim: "oklch(0.68 0.015 260)", label: "Silver medal" },
-  { ribbon: "oklch(0.48 0.12 160)", disc: "oklch(0.74 0.12 55)", rim: "oklch(0.58 0.11 50)", label: "Bronze medal" },
+  { ribbon: "oklch(0.55 0.2 25)", disc: "oklch(0.82 0.17 85)", rim: "oklch(0.68 0.16 75)", label: "Gold medal", glow: "oklch(0.82 0.17 85 / 0.18)" },
+  { ribbon: "oklch(0.52 0.16 262)", disc: "oklch(0.86 0.01 260)", rim: "oklch(0.68 0.015 260)", label: "Silver medal", glow: "oklch(0.86 0.01 260 / 0.22)" },
+  { ribbon: "oklch(0.48 0.12 160)", disc: "oklch(0.74 0.12 55)", rim: "oklch(0.58 0.11 50)", label: "Bronze medal", glow: "oklch(0.74 0.12 55 / 0.18)" },
 ];
 
 /** Original medal glyph (Heroicons has no medal), coloured per podium place. */
@@ -344,73 +358,81 @@ function MedalIcon({ place, className }: { place: 0 | 1 | 2; className?: string 
   );
 }
 
-function RankedTableCard({
+function RankedCard({
   title,
   description,
-  columns,
+  icon,
+  accent,
+  valueLabel,
   rows,
   emptyText = "No data for this selection.",
 }: {
   title: string;
   description?: string;
-  columns: string[];
+  icon: React.ReactNode;
+  accent: string;
+  valueLabel: string;
   rows: RankedRow[];
   emptyText?: string;
 }) {
+  const max = rows.reduce((m, r) => Math.max(m, r.value), 0) || 1;
   return (
-    <div className="bg-card flex flex-col rounded-xl border shadow-sm">
-      <div className="px-4 pt-4 pb-2">
-        <h3 className="text-sm font-semibold">{title}</h3>
-        {description && <p className="text-muted-foreground text-xs">{description}</p>}
+    <div className="bg-card relative overflow-hidden rounded-xl border shadow-sm">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-1" style={{ background: `linear-gradient(90deg, ${accent}, transparent)` }} />
+      <div className="flex items-center justify-between gap-3 px-5 pt-5 pb-3">
+        <div className="flex items-center gap-3">
+          <div className="flex size-9 items-center justify-center rounded-lg [&>svg]:size-5" style={{ background: `color-mix(in oklch, ${accent} 14%, transparent)`, color: accent }}>
+            {icon}
+          </div>
+          <div>
+            <h3 className="font-semibold leading-tight">{title}</h3>
+            {description && <p className="text-muted-foreground text-xs">{description}</p>}
+          </div>
+        </div>
+        <span className="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">{valueLabel}</span>
       </div>
+
       {rows.length === 0 ? (
-        <p className="text-muted-foreground px-4 pb-6 pt-2 text-sm">{emptyText}</p>
+        <p className="text-muted-foreground px-5 pb-6 text-sm">{emptyText}</p>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              {columns.map((c, i) => (
-                <TableHead key={c} className={cn("px-4", i === 0 && "w-14", i === columns.length - 1 && "text-right")}>
-                  {c}
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((r, i) => (
-              <TableRow key={r.id}>
-                <TableCell className="px-4">
-                  {i < 3 ? (
-                    <MedalIcon place={i as 0 | 1 | 2} className="size-7 drop-shadow-sm" />
-                  ) : (
-                    <span className="bg-muted text-muted-foreground inline-flex size-6 items-center justify-center rounded-full text-xs font-bold tabular-nums">
-                      {i + 1}
-                    </span>
+        <ol className="px-3 pb-3">
+          {rows.map((r, i) => {
+            const podium = i < 3;
+            return (
+              <li key={r.id}>
+                <Link
+                  href={`/students/${r.id}`}
+                  className={cn(
+                    "group flex items-center gap-3 rounded-lg px-2 py-2 transition-colors",
+                    i === 0 ? "bg-[oklch(0.97_0.03_85)] dark:bg-[oklch(0.3_0.04_85)]" : "hover:bg-accent/60"
                   )}
-                </TableCell>
-                <TableCell className="px-4">
-                  <Link href={`/students/${r.id}`} className="font-medium hover:underline">
-                    {r.name}
-                  </Link>
-                </TableCell>
-                {r.cells.map((c, j) => {
-                  const last = j === r.cells.length - 1;
-                  return (
-                    <TableCell key={j} className={cn("px-4", last && "text-right")}>
-                      {last ? (
-                        <Badge variant={i === 0 ? "default" : "secondary"} className="tabular-nums">
-                          {c}
-                        </Badge>
-                      ) : (
-                        <span className="text-muted-foreground text-xs">{c}</span>
-                      )}
-                    </TableCell>
-                  );
-                })}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+                >
+                  <span className="flex w-8 shrink-0 items-center justify-center">
+                    {podium ? (
+                      <MedalIcon place={i as 0 | 1 | 2} className="size-8 drop-shadow-sm" />
+                    ) : (
+                      <span className="text-muted-foreground text-sm font-semibold tabular-nums">{i + 1}</span>
+                    )}
+                  </span>
+                  <span
+                    className="flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-bold"
+                    style={{ background: podium ? MEDALS[i].glow : "var(--muted)", color: podium ? "var(--foreground)" : "var(--muted-foreground)" }}
+                  >
+                    {initials(r.name)}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className={cn("block truncate text-sm group-hover:underline", i === 0 ? "font-semibold" : "font-medium")}>{r.name}</span>
+                    <span className="text-muted-foreground block truncate text-xs">{r.meta}</span>
+                    <span className="bg-muted mt-1.5 block h-1 w-full overflow-hidden rounded-full">
+                      <span className="block h-full rounded-full" style={{ width: `${Math.max(6, (r.value / max) * 100)}%`, background: accent, opacity: podium ? 1 : 0.55 }} />
+                    </span>
+                  </span>
+                  <span className={cn("shrink-0 text-right tabular-nums", i === 0 ? "text-lg font-bold" : "text-sm font-semibold")}>{r.display}</span>
+                </Link>
+              </li>
+            );
+          })}
+        </ol>
       )}
     </div>
   );

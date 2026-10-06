@@ -2,9 +2,10 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowDownTrayIcon, FunnelIcon } from "@heroicons/react/24/outline";
+import { AcademicCapIcon, ArrowDownTrayIcon, FunnelIcon, UserGroupIcon, UserMinusIcon, UsersIcon } from "@heroicons/react/24/outline";
 
 import { PageHeader } from "@/components/shared/page-header";
+import { KpiCard } from "@/components/shared/kpi-card";
 import { SearchInput } from "@/components/shared/search-input";
 import { Pagination } from "@/components/shared/pagination";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -29,17 +30,30 @@ export function StudentsView() {
   const [course, setCourse] = React.useState("all");
   const [status, setStatus] = React.useState("all");
 
-  const filtered = React.useMemo(() => {
+  // Students matching every filter except status – drives the summary cards so they never zero out when a status is picked.
+  const base = React.useMemo(() => {
     const q = query.trim().toLowerCase();
     return STUDENTS.filter(
       (s) =>
         (!q || s.name.toLowerCase().includes(q) || s.email.toLowerCase().includes(q)) &&
         (generation === "all" || s.generation === Number(generation)) &&
         (classroom === "all" || s.classroom === classroom) &&
-        (course === "all" || s.courseCode === course) &&
-        (status === "all" || s.status === status)
+        (course === "all" || s.courseCode === course)
     );
-  }, [query, generation, classroom, course, status]);
+  }, [query, generation, classroom, course]);
+
+  const filtered = React.useMemo(() => base.filter((s) => status === "all" || s.status === status), [base, status]);
+
+  const counts = React.useMemo(
+    () => ({
+      total: base.length,
+      active: base.filter((s) => s.status === "active").length,
+      dropped: base.filter((s) => s.status === "dropped").length,
+      graduated: base.filter((s) => s.status === "graduated").length,
+    }),
+    [base]
+  );
+  const pct = (n: number) => (counts.total ? `${Math.round((n / counts.total) * 100)}% of total` : "—");
 
   const { page, setPage, pageSize, slice, total } = usePagination(filtered, 12);
   React.useEffect(() => setPage(1), [query, generation, classroom, course, status, setPage]);
@@ -77,6 +91,28 @@ export function StudentsView() {
           ) : undefined
         }
       />
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {(
+          [
+            { key: "all", label: "Total students", value: counts.total, hint: generation === "all" ? "across all generations" : `generation ${generation}`, icon: <UsersIcon />, tone: "primary" },
+            { key: "active", label: "Active", value: counts.active, hint: pct(counts.active), icon: <AcademicCapIcon />, tone: "success" },
+            { key: "dropped", label: "Dropped", value: counts.dropped, hint: pct(counts.dropped), icon: <UserMinusIcon />, tone: "danger" },
+            { key: "graduated", label: "Graduated", value: counts.graduated, hint: pct(counts.graduated), icon: <UserGroupIcon />, tone: "default" },
+          ] as const
+        ).map((c) => (
+          <button
+            key={c.key}
+            type="button"
+            onClick={() => setStatus(c.key)}
+            className={`cursor-pointer rounded-xl text-left transition-shadow focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 ${status === c.key ? "ring-2 ring-primary/60" : "hover:shadow-md"}`}
+            aria-pressed={status === c.key}
+            title={c.key === "all" ? "Show all students" : `Filter: ${c.label.toLowerCase()} students`}
+          >
+            <KpiCard label={c.label} value={c.value} hint={c.hint} icon={c.icon} tone={c.tone} className="h-full" />
+          </button>
+        ))}
+      </div>
 
       <div className="bg-card rounded-xl border shadow-sm">
         <div className="flex flex-col gap-3 border-b p-4 lg:flex-row lg:items-center">
