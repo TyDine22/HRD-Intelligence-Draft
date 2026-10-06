@@ -29,13 +29,13 @@ import { useAppStore } from "@/lib/store/app-store";
 import { studentById, initials } from "@/lib/data/students";
 import { courseByCode, userById } from "@/lib/data/users";
 import { ATTENDANCE, MONTHLY_SCORES, SCORES, assessRisk, getStudentStats, scoreAverage, scoreTotal } from "@/lib/data/academics";
-import { ALLOWANCE_MONTHS, computeMonthlyAllowance } from "@/lib/data/allowances";
+import { ALLOWANCE_MONTHS, allowanceColumns, computeMonthlyAllowance } from "@/lib/data/allowances";
 import { summarizeFeedback } from "@/lib/data/feedback";
 import { formatDate, formatMonth, formatCurrency, ageFromDob, weekdayOf } from "@/lib/utils/format";
 
 export function StudentDetailView({ id }: { id: string }) {
   const { isAdmin } = useAuth();
-  const { feedback, allowanceTypes, extraClasses } = useAppStore();
+  const { feedback, allowanceTypes, extraClasses, challenge } = useAppStore();
   const student = studentById(id);
 
   if (!student) {
@@ -61,6 +61,8 @@ export function StudentDetailView({ id }: { id: string }) {
   const attendance = ATTENDANCE.filter((a) => a.studentId === student.id).sort((a, b) => (a.date < b.date ? 1 : -1));
   const studentFeedback = feedback.filter((f) => f.studentId === student.id);
   const studentExtra = extraClasses.filter((e) => e.studentId === student.id);
+  // Columns are the enabled allowance types plus the one-off coding challenge reward (in its payout month).
+  const allowanceCols = allowanceColumns(allowanceTypes, challenge.payoutMonth, challenge);
 
   const attendanceData = [
     { name: "Present", value: stats.present },
@@ -259,17 +261,24 @@ export function StudentDetailView({ id }: { id: string }) {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Month</TableHead>
-                    {allowanceTypes.filter((t) => t.enabled).map((t) => <TableHead key={t.id} className="text-right">{t.name}</TableHead>)}
+                    {allowanceCols.map((c) => <TableHead key={c.id} className="text-right">{c.name}</TableHead>)}
                     <TableHead className="text-right">Total</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {[...ALLOWANCE_MONTHS].reverse().map((m) => {
-                    const row = computeMonthlyAllowance(student, m, allowanceTypes);
+                    const row = computeMonthlyAllowance(student, m, allowanceTypes, challenge);
                     return (
                       <TableRow key={m}>
                         <TableCell className="font-medium">{formatMonth(m)}</TableCell>
-                        {row.lines.map((l) => <TableCell key={l.typeId} className="text-right tabular-nums">{l.amount ? formatCurrency(l.amount) : "—"}</TableCell>)}
+                        {allowanceCols.map((c) => {
+                          const line = row.lines.find((l) => l.typeId === c.id);
+                          return (
+                            <TableCell key={c.id} className="text-right tabular-nums" title={line?.note}>
+                              {line && line.amount ? formatCurrency(line.amount) : "—"}
+                            </TableCell>
+                          );
+                        })}
                         <TableCell className="text-right font-semibold tabular-nums">{formatCurrency(row.total)}</TableCell>
                       </TableRow>
                     );

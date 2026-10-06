@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowDownTrayIcon, BanknotesIcon, PencilSquareIcon, PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
+import { ArrowDownTrayIcon, BanknotesIcon, PencilSquareIcon, PlusIcon, TrashIcon, TrophyIcon } from "@heroicons/react/24/outline";
 
 import { PageHeader } from "@/components/shared/page-header";
 import { KpiCard } from "@/components/shared/kpi-card";
@@ -20,7 +20,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useAppStore } from "@/lib/store/app-store";
 import { useToast } from "@/hooks/use-toast";
 import { STUDENTS, CLASSROOMS } from "@/lib/data/students";
-import { ALLOWANCE_MONTHS, computeMonthlyAllowance } from "@/lib/data/allowances";
+import { ALLOWANCE_MONTHS, allowanceColumns, challengeAppliesTo, computeMonthlyAllowance } from "@/lib/data/allowances";
+import { CodingChallengePanel } from "./coding-challenge-panel";
 import { formatCurrency, formatMonth } from "@/lib/utils/format";
 import { exportCsv, exportExcel } from "@/lib/utils/export";
 import type { AllowanceRange, AllowanceType } from "@/lib/data/types";
@@ -34,7 +35,8 @@ const BASIS_LABEL: Record<AllowanceType["basis"], string> = {
 };
 
 export function AllowancesView() {
-  const { allowanceTypes, updateAllowanceType } = useAppStore();
+  const { allowanceTypes, updateAllowanceType, challenge, updateChallenge } = useAppStore();
+  const [tab, setTab] = React.useState("monthly");
   const { toast } = useToast();
   const [month, setMonth] = React.useState("2026-09");
   const [classroom, setClassroom] = React.useState("all");
@@ -44,20 +46,22 @@ export function AllowancesView() {
 
   const activeClassrooms = CLASSROOMS.filter((c) => c.includes("13"));
   const enabledTypes = allowanceTypes.filter((t) => t.enabled);
+  const columns = React.useMemo(() => allowanceColumns(allowanceTypes, month, challenge), [allowanceTypes, month, challenge]);
+  const challengeActive = challengeAppliesTo(challenge, month);
 
   const rows = React.useMemo(() => {
     const q = query.trim().toLowerCase();
     return STUDENTS.filter((s) => s.status === "active" && (classroom === "all" || s.classroom === classroom) && (!q || s.name.toLowerCase().includes(q)))
-      .map((s) => ({ student: s, allowance: computeMonthlyAllowance(s, month, allowanceTypes) }))
+      .map((s) => ({ student: s, allowance: computeMonthlyAllowance(s, month, allowanceTypes, challenge) }))
       .sort((a, b) => b.allowance.total - a.allowance.total);
-  }, [month, classroom, query, allowanceTypes]);
+  }, [month, classroom, query, allowanceTypes, challenge]);
 
   const grandTotal = rows.reduce((a, r) => a + r.allowance.total, 0);
   const avg = rows.length ? grandTotal / rows.length : 0;
-  const byType = enabledTypes.map((t) => ({ t, total: rows.reduce((a, r) => a + (r.allowance.lines.find((l) => l.typeId === t.id)?.amount ?? 0), 0) }));
+  const byType = columns.map((t) => ({ t, total: rows.reduce((a, r) => a + (r.allowance.lines.find((l) => l.typeId === t.id)?.amount ?? 0), 0) }));
   const largest = [...byType].sort((a, b) => b.total - a.total)[0];
 
-  const exportColumns = ["Student ID", "Name", "Class", "Attendance %", "Extra hours", ...enabledTypes.map((t) => t.name), "Total (USD)"];
+  const exportColumns = ["Student ID", "Name", "Class", "Attendance %", "Extra hours", ...columns.map((t) => t.name), "Total (USD)"];
   const exportRows = () => rows.map((r) => [r.student.id, r.student.name, r.student.classroom, r.allowance.attendanceRate, r.allowance.extraHours, ...r.allowance.lines.map((l) => l.amount), r.allowance.total]);
 
   const openEdit = (t: AllowanceType) => {
@@ -96,13 +100,17 @@ export function AllowancesView() {
         <KpiCard label={`Total · ${formatMonth(month)}`} value={formatCurrency(Math.round(grandTotal))} hint={`${rows.length} active students`} icon={<BanknotesIcon />} tone="primary" />
         <KpiCard label="Average per student" value={formatCurrency(Math.round(avg))} hint="all enabled allowance types" tone="success" />
         <KpiCard label="Largest component" value={largest?.t.name ?? "—"} hint={largest ? formatCurrency(Math.round(largest.total)) : ""} />
-        <KpiCard label="Allowance types enabled" value={`${enabledTypes.length} / ${allowanceTypes.length}`} hint="manage under Rules" />
+        <KpiCard label="Allowance types enabled" value={`${enabledTypes.length} / ${allowanceTypes.length}`} hint={challenge.enabled ? `+ coding challenge (${formatMonth(challenge.payoutMonth)})` : "coding challenge inactive"} />
       </div>
 
-      <Tabs defaultValue="monthly">
+      <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="monthly">Monthly allowances</TabsTrigger>
           <TabsTrigger value="rules">Allowance types & rules</TabsTrigger>
+          <TabsTrigger value="challenge">
+            <TrophyIcon /> Coding challenge
+            {challenge.enabled && <Badge variant="success" className="ml-1 h-4 px-1.5 text-[10px]">On</Badge>}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="monthly" className="pt-2">
@@ -125,13 +133,18 @@ export function AllowancesView() {
                 </Select>
               </div>
             </div>
+            {challengeActive && (
+              <p className="bg-warning/15 flex items-center gap-2 border-b px-4 py-2 text-xs">
+                <TrophyIcon className="size-4" /> {challenge.name} prizes are included in this month. Winning teams are highlighted in the “Coding challenge reward” column.
+              </p>
+            )}
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Student</TableHead>
                   <TableHead>Class</TableHead>
                   <TableHead className="text-right">Att. %</TableHead>
-                  {enabledTypes.map((t) => <TableHead key={t.id} className="text-right">{t.name.replace(" allowance", "")}</TableHead>)}
+                  {columns.map((t) => <TableHead key={t.id} className="text-right">{t.name.replace(" allowance", "")}</TableHead>)}
                   <TableHead className="text-right">Total</TableHead>
                 </TableRow>
               </TableHeader>
@@ -194,7 +207,32 @@ export function AllowancesView() {
                 </Button>
               </div>
             ))}
+            <div className={`bg-card border-warning/50 flex flex-col rounded-xl border border-dashed p-4 shadow-sm ${!challenge.enabled ? "opacity-60" : ""}`}>
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="flex items-center gap-1.5 font-medium"><TrophyIcon className="size-4" /> Coding challenge reward</p>
+                  <p className="text-muted-foreground text-xs">One-off · team prize · {formatMonth(challenge.payoutMonth)}</p>
+                </div>
+                <Switch checked={challenge.enabled} onCheckedChange={(v) => updateChallenge({ enabled: v })} aria-label="Enable coding challenge reward" />
+              </div>
+              <p className="text-muted-foreground mt-2 text-sm">Prize for the top 3 teams of the one-day coding challenge held once in the Basic course before the final project.</p>
+              <ul className="mt-3 flex-1 space-y-1 text-sm">
+                {challenge.rewards.map((r) => (
+                  <li key={r.place} className="flex items-center justify-between rounded-md bg-muted/50 px-2 py-1">
+                    <span>Top {r.place} team</span>
+                    <span className="font-medium tabular-nums">{formatCurrency(r.amount)}</span>
+                  </li>
+                ))}
+              </ul>
+              <Button variant="outline" size="sm" className="mt-4 self-start" onClick={() => setTab("challenge")}>
+                <PencilSquareIcon /> Manage challenge
+              </Button>
+            </div>
           </div>
+        </TabsContent>
+
+        <TabsContent value="challenge" className="pt-2">
+          <CodingChallengePanel />
         </TabsContent>
       </Tabs>
 

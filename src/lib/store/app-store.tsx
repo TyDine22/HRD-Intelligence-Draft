@@ -10,6 +10,7 @@ import type {
   ChatMessage,
   ChatScope,
   ChatSession,
+  CodingChallenge,
   ExtraClassRecord,
   FeedbackEntry,
   FileNode,
@@ -22,7 +23,7 @@ import { FILES } from "@/lib/data/files";
 import { NOTIFICATIONS } from "@/lib/data/notifications";
 import { INITIAL_SESSIONS, MAX_SESSIONS } from "@/lib/data/chat";
 import { AGENTS } from "@/lib/data/agents";
-import { ALLOWANCE_TYPES } from "@/lib/data/allowances";
+import { ALLOWANCE_TYPES, CODING_CHALLENGE } from "@/lib/data/allowances";
 import { EXTRA_CLASSES } from "@/lib/data/academics";
 
 export interface OvertimeReport {
@@ -79,6 +80,9 @@ interface AppStoreValue {
   allowanceTypes: AllowanceType[];
   updateAllowanceType: (id: string, patch: Partial<AllowanceType>) => void;
 
+  challenge: CodingChallenge;
+  updateChallenge: (patch: Partial<CodingChallenge> | ((prev: CodingChallenge) => CodingChallenge)) => void;
+
   extraClasses: ExtraClassRecord[];
   setExtraClassStatus: (id: string, status: ExtraClassRecord["status"]) => void;
 
@@ -102,6 +106,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const [sessions, setSessions] = React.useState<ChatSession[]>(INITIAL_SESSIONS);
   const [agents, setAgents] = React.useState<Agent[]>(AGENTS);
   const [allowanceTypes, setAllowanceTypes] = React.useState<AllowanceType[]>(ALLOWANCE_TYPES);
+  const [challenge, setChallenge] = React.useState<CodingChallenge>(CODING_CHALLENGE);
   const [extraClasses, setExtraClasses] = React.useState<ExtraClassRecord[]>(EXTRA_CLASSES);
   const [overtimeReports, setOvertimeReports] = React.useState<OvertimeReport[]>([
     { id: "OT-1", instructorId: "USR-INS-01", date: "2026-09-25", classroom: "SP13-A", hours: 2, subject: "Spring Cloud", notes: "Config server lab", status: "approved" },
@@ -316,6 +321,9 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const updateAllowanceType = React.useCallback<AppStoreValue["updateAllowanceType"]>((id, patch) => {
     setAllowanceTypes((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
   }, []);
+  const updateChallenge = React.useCallback<AppStoreValue["updateChallenge"]>((patch) => {
+    setChallenge((prev) => (typeof patch === "function" ? patch(prev) : { ...prev, ...patch }));
+  }, []);
   const setExtraClassStatus = React.useCallback<AppStoreValue["setExtraClassStatus"]>((id, status) => {
     setExtraClasses((prev) => prev.map((e) => (e.id === id ? { ...e, status } : e)));
   }, []);
@@ -362,6 +370,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       runAgent,
       allowanceTypes,
       updateAllowanceType,
+      challenge,
+      updateChallenge,
       extraClasses,
       setExtraClassStatus,
       overtimeReports,
@@ -375,6 +385,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       sessions, createSession, renameSession, deleteSession, appendMessage, updateAttachment, setSessionScope,
       agents, toggleAgent, runAgent,
       allowanceTypes, updateAllowanceType,
+      challenge, updateChallenge,
       extraClasses, setExtraClassStatus,
       overtimeReports, addOvertimeReport,
     ]

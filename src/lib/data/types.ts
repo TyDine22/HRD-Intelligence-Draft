@@ -93,6 +93,32 @@ export interface AllowanceType {
   enabled: boolean;
 }
 
+export interface ChallengeTeam {
+  id: string;
+  name: string;
+  memberIds: string[];
+  rank: 1 | 2 | 3 | null;
+}
+
+export interface ChallengeReward {
+  place: 1 | 2 | 3;
+  amount: number;
+}
+
+/** One-off team coding challenge held once in the Basic course, before the final project. */
+export interface CodingChallenge {
+  enabled: boolean;
+  name: string;
+  courseLabel: string;
+  date: string;
+  /** Allowance month (YYYY-MM) in which the reward is paid out. */
+  payoutMonth: string;
+  maxTeamSize: number;
+  /** The team prize is always split equally among the team members. */
+  rewards: ChallengeReward[];
+  teams: ChallengeTeam[];
+}
+
 export type FeedbackCategory = "Behavior" | "Soft Skills" | "Hard Skills" | "Other";
 
 export interface FeedbackEntry {
