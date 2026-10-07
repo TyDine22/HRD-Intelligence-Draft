@@ -10,10 +10,10 @@ import type { NotificationType } from "@/lib/data/types";
 import { cn } from "@/lib/utils";
 
 const MAP: Record<NotificationType, { icon: typeof BellAlertIcon; className: string }> = {
-  "low-attendance": { icon: BellAlertIcon, className: "bg-destructive/10 text-destructive" },
-  "declining-academic": { icon: AcademicCapIcon, className: "bg-warning/25 text-[oklch(0.45_0.12_70)] dark:text-[oklch(0.88_0.14_80)]" },
-  "alumni-update": { icon: UserGroupIcon, className: "bg-info/15 text-[oklch(0.42_0.1_215)] dark:text-[oklch(0.82_0.1_215)]" },
-  "overtime-reminder": { icon: ClockIcon, className: "bg-primary/10 text-primary" },
+  "low-attendance": { icon: BellAlertIcon, className: "bg-error-bg text-error-text" },
+  "declining-academic": { icon: AcademicCapIcon, className: "bg-warning-bg text-warning-text" },
+  "alumni-update": { icon: UserGroupIcon, className: "bg-info-bg text-info-text" },
+  "overtime-reminder": { icon: ClockIcon, className: "bg-accent text-accent-foreground" },
   system: { icon: CpuChipIcon, className: "bg-muted text-muted-foreground" },
 };
 

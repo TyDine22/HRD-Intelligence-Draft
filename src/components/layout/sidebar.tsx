@@ -56,7 +56,7 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
                           <span
                             className={cn(
                               "rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums",
-                              item.badgeKey === "atRisk" ? "bg-[oklch(0.65_0.2_15)] text-white" : "bg-sidebar-primary text-sidebar-primary-foreground"
+                              item.badgeKey === "atRisk" ? "bg-[#ed1c2e] text-white" : "bg-sidebar-primary text-sidebar-primary-foreground"
                             )}
                           >
                             {badge}

@@ -16,7 +16,7 @@ export const STATUS_COLORS: Record<string, string> = {
   Absent: "var(--chart-4)",
   Permission: "var(--chart-1)",
   Male: "var(--chart-1)",
-  Female: "var(--chart-5)",
+  Female: "var(--chart-8)",
   "Local SW Developer": "var(--chart-1)",
   "International SW Developer": "var(--chart-2)",
   Banks: "var(--chart-4)",

@@ -66,7 +66,7 @@ export function ResetPasswordForm() {
   if (done) {
     return (
       <div className="space-y-6 text-center">
-        <div className="bg-success/15 mx-auto flex size-14 items-center justify-center rounded-full text-[oklch(0.5_0.14_155)]">
+        <div className="bg-success-bg text-success-text mx-auto flex size-14 items-center justify-center rounded-full">
           <CheckCircleIcon className="size-7" />
         </div>
         <div>

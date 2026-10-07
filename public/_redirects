@@ -1,0 +1,3 @@
+# Netlify redirects for the static export.
+# All app routes are pre-rendered into out/, so only the root shortcut is needed.
+/            /dashboard/   302

@@ -113,7 +113,7 @@ export function CodingChallengePanel() {
       <div className={cn("bg-card rounded-xl border p-5 shadow-sm", !challenge.enabled && "opacity-80")}>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex items-start gap-3">
-            <div className="bg-warning/25 flex size-10 shrink-0 items-center justify-center rounded-lg text-[oklch(0.45_0.12_70)] dark:text-[oklch(0.88_0.14_80)]">
+            <div className="bg-warning-bg text-warning-text flex size-10 shrink-0 items-center justify-center rounded-lg">
               <TrophyIcon className="size-5" />
             </div>
             <div>
@@ -171,7 +171,7 @@ export function CodingChallengePanel() {
           <div className="grid gap-3 sm:grid-cols-3">
             {challenge.rewards.map((r) => (
               <div key={r.place} className="flex items-center gap-3 rounded-lg border p-3">
-                <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-bold", r.place === 1 ? "bg-[oklch(0.85_0.16_85)] text-[oklch(0.35_0.1_70)]" : r.place === 2 ? "bg-[oklch(0.86_0.01_260)] text-[oklch(0.35_0.02_260)]" : "bg-[oklch(0.78_0.1_55)] text-[oklch(0.3_0.08_50)]")}>
+                <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-bold", r.place === 1 ? "bg-[#f5a300] text-[#4a2c00]" : r.place === 2 ? "bg-[#cfd5db] text-[#394149]" : "bg-[#c47a3a] text-white")}>
                   {ordinal(r.place)}
                 </span>
                 <div className="flex-1">

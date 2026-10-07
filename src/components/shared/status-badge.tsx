@@ -43,7 +43,7 @@ export function EmploymentBadge({ status }: { status: EmploymentStatus }) {
     <Badge
       variant="outline"
       className="gap-1.5 border-transparent"
-      style={{ background: `color-mix(in oklch, ${color} 14%, transparent)`, color: `color-mix(in oklch, ${color} 80%, var(--foreground))` }}
+      style={{ background: `color-mix(in srgb, ${color} 14%, transparent)`, color: `color-mix(in srgb, ${color} 80%, var(--foreground))` }}
     >
       <span className="size-1.5 rounded-full" style={{ background: color }} />
       {status}

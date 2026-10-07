@@ -38,7 +38,7 @@ The user menu (top-right) has a **Switch to Admin/Instructor** shortcut so you c
 
 | Spec section | Module | Route |
 | --- | --- | --- |
-| 2.1 Authentication | Login, forgot password, change password (RHF + Zod) | `/login`, `/forgot-password`, `/settings` |
+| 2.1 Authentication | Login, forgot password, reset-password landing page (token in URL), change password (RHF + Zod) | `/login`, `/forgot-password`, `/reset-password`, `/settings` |
 | 2.2 Student management | Profiles, search, filters (generation / class / course / status), detail page with scores, attendance, feedback, allowance | `/students`, `/students/[id]` |
 | 2.2 Attendance | Filter by class, month or specific day, status; search; CSV export | `/attendance` |
 | 2.2 Scores | Assignment / quiz / exam / homework with auto totals & averages, score-range filter, per-subject breakdown | `/scores` |
@@ -89,3 +89,15 @@ single place to swap in the FastAPI RAG service.
 * The in-memory store resets on page reload (by design for the prototype). The login session and theme are persisted in `localStorage`.
 * "Today" inside the dataset is fixed to **6 Oct 2026** so server and client render identically.
 * PDF export uses the browser print dialog; Excel export produces an Excel-compatible `.xls` workbook.
+
+## Deployment (Netlify)
+
+The app is configured as a **static export** (`output: "export"` in `next.config.ts`), so `npm run build` produces a
+plain static site in `out/`. `netlify.toml` already sets the build command and publish directory:
+
+1. Push the repo to GitHub.
+2. Netlify → *Add new site* → *Import an existing project* → pick the repo. Netlify reads `netlify.toml`
+   (build `npm run build`, publish `out`). If the app lives in a sub-folder of the repo, set **Base directory** to it.
+3. Deploy. Alternatively run `npm run build` locally and drag the `out/` folder onto Netlify Drop.
+
+`public/_redirects` sends `/` to `/dashboard/`; every other route is pre-rendered.

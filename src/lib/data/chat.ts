@@ -177,13 +177,10 @@ export function generateReply(prompt: string, scope: ChatScope, role: Role): Omi
   if (/alumni|employment|graduate/.test(q) && role === "ADMIN") {
     const counts: Record<string, number> = {};
     ALUMNI.forEach((a) => (counts[a.employmentStatus] = (counts[a.employmentStatus] ?? 0) + 1));
+    const ranked = Object.entries(counts).sort((a, b) => b[1] - a[1]);
     return {
       ...now,
-      content: `Of ${ALUMNI.length} alumni on record, ${counts.employed ?? 0} are employed, ${counts["self-employed"] ?? 0} are self-employed, ${counts.studying ?? 0} are studying and ${counts.unemployed ?? 0} are unemployed. The largest industry is ${
-        Object.entries(
-          ALUMNI.reduce<Record<string, number>>((acc, a) => ((acc[a.industry] = (acc[a.industry] ?? 0) + 1), acc), {})
-        ).sort((a, b) => b[1] - a[1])[0][0]
-      }.`,
+      content: `Of ${ALUMNI.length} alumni on record, ${ranked.map(([k, v]) => `${v} are ${k.toLowerCase()}${k === "Banks" ? " staff" : ""}`).join(", ")}. The largest group is ${ranked[0][0]} (${Math.round((ranked[0][1] / ALUMNI.length) * 100)}%).`,
       attachment: {
         kind: "chart",
         chartType: "bar",
