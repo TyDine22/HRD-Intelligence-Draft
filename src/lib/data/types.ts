@@ -75,6 +75,18 @@ export interface ExtraClassRecord {
   status: "approved" | "pending";
 }
 
+/** An extra-class (overtime) session taught by an instructor, reported for approval and pay. */
+export interface OvertimeReport {
+  id: string;
+  instructorId: string;
+  date: string;
+  classroom: string;
+  hours: number;
+  subject: string;
+  notes?: string;
+  status: "submitted" | "approved" | "rejected";
+}
+
 export type AllowanceBasis = "fixed" | "per-hour" | "score-range" | "attendance-range" | "role";
 
 export interface AllowanceRange {

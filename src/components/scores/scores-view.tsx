@@ -17,7 +17,8 @@ import { usePagination } from "@/hooks/use-pagination";
 import { STUDENTS, CLASSROOMS } from "@/lib/data/students";
 import { SCORES, getStudentStats, scoreAverage, scoreTotal } from "@/lib/data/academics";
 import { courseByCode } from "@/lib/data/users";
-import { exportCsv } from "@/lib/utils/export";
+import { ExportPreviewDialog, type ExportSpec } from "@/components/shared/export-preview-dialog";
+import { CardField, CardFields, CardGrid, RecordCard, ViewToggle, useViewMode } from "@/components/shared/view-toggle";
 import { cn } from "@/lib/utils";
 
 const RANGES = [
@@ -71,19 +72,31 @@ export function ScoresView() {
   const top = rows[0];
   const below = rows.filter((r) => r.average < 65).length;
 
-  const exportRows = () =>
-    exportCsv(
-      "scores",
-      ["Student ID", "Student", "Class", "Subject", "Assignment", "Quiz", "Exam", "Homework", "Total", "Average"],
-      rows.flatMap((r) => r.subjects.map((s) => [r.student.id, r.student.name, r.student.classroom, s.subject, s.assignment, s.quiz, s.exam, s.homework, scoreTotal(s), scoreAverage(s)]))
-    );
+  const [exportOpen, setExportOpen] = React.useState(false);
+  const [view, setView] = useViewMode("scores");
+  const buildExport = (): ExportSpec => ({
+    filename: "scores",
+    columns: ["Student ID", "Student", "Class", "Subject", "Assignment", "Quiz", "Exam", "Homework", "Total", "Average"],
+    numericFrom: 4,
+    rows: rows.flatMap((r) => r.subjects.map((s) => [r.student.id, r.student.name, r.student.classroom, s.subject, s.assignment, s.quiz, s.exam, s.homework, scoreTotal(s), scoreAverage(s)])),
+    summary: [
+      { label: "Students", value: rows.length },
+      { label: "Average score", value: classAvg },
+      { label: "Below 65", value: below },
+    ],
+  });
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Academic scores"
         description="Assignments, quizzes, exams and homework. Totals and averages are calculated automatically."
-        actions={<Button variant="outline" onClick={exportRows}><ArrowDownTrayIcon /> Export CSV</Button>}
+        actions={
+          <>
+            <Button variant="outline" onClick={() => setExportOpen(true)}><ArrowDownTrayIcon /> Export CSV</Button>
+            <ExportPreviewDialog open={exportOpen} onOpenChange={setExportOpen} build={buildExport} title="Export scores" />
+          </>
+        }
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -109,11 +122,56 @@ export function ScoresView() {
                 {RANGES.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
               </SelectContent>
             </Select>
+            <ViewToggle value={view} onChange={setView} className="ml-auto" />
           </div>
         </div>
 
         {slice.length === 0 ? (
           <EmptyState title="No scores match" description="Adjust the search, classroom or score range." />
+        ) : view === "grid" ? (
+          <CardGrid>
+            {slice.map((r) => {
+              const open = expanded === r.student.id;
+              return (
+                <RecordCard
+                  key={r.student.id}
+                  href={`/students/${r.student.id}`}
+                  title={r.student.name}
+                  subtitle={`${r.student.classroom} · ${courseByCode(r.student.courseCode).name}`}
+                  trailing={<ScoreBadge score={r.average} />}
+                  footer={
+                    <>
+                      <span className="text-muted-foreground text-xs">
+                        Total <span className="text-foreground font-medium tabular-nums">{r.total}</span>
+                      </span>
+                      <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setExpanded(open ? null : r.student.id)}>
+                        {open ? <ChevronDownIcon /> : <ChevronRightIcon />} {r.subjects.length} subjects
+                      </Button>
+                    </>
+                  }
+                >
+                  <CardFields columns={4}>
+                    <CardField label="Assign.">{r.assignment}</CardField>
+                    <CardField label="Quiz">{r.quiz}</CardField>
+                    <CardField label="Exam">{r.exam}</CardField>
+                    <CardField label="Homework">{r.homework}</CardField>
+                  </CardFields>
+                  {open && (
+                    <ul className="bg-muted/30 divide-y rounded-md text-xs">
+                      {r.subjects.map((s) => (
+                        <li key={s.id} className="flex items-center justify-between gap-2 px-2.5 py-1.5">
+                          <span className="text-muted-foreground truncate">{s.subject}</span>
+                          <span className="tabular-nums">
+                            {scoreTotal(s)} · <span className="font-medium">{scoreAverage(s)}</span>
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </RecordCard>
+              );
+            })}
+          </CardGrid>
         ) : (
           <Table>
             <TableHeader>

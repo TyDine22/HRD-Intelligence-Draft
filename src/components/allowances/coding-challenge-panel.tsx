@@ -13,6 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { CardField, CardFields, CardGrid, RecordCard, ViewToggle, useViewMode } from "@/components/shared/view-toggle";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAppStore } from "@/lib/store/app-store";
 import { useToast } from "@/hooks/use-toast";
@@ -31,6 +32,7 @@ const RANK_OPTIONS: { value: string; label: string }[] = [
 
 export function CodingChallengePanel() {
   const { challenge, updateChallenge } = useAppStore();
+  const [view, setView] = useViewMode("challenge-teams");
   const { toast } = useToast();
   const [editing, setEditing] = React.useState<ChallengeTeam | null>(null);
   const [isNew, setIsNew] = React.useState(false);
@@ -202,10 +204,54 @@ export function CodingChallengePanel() {
             <h3 className="font-semibold">Teams & results</h3>
             <p className="text-muted-foreground text-xs">Assign Basic-course students to teams and record the final placing.</p>
           </div>
-          <Button onClick={() => openEdit(null)}><PlusIcon /> Add team</Button>
+          <div className="flex items-center gap-2">
+            <ViewToggle value={view} onChange={setView} />
+            <Button onClick={() => openEdit(null)}><PlusIcon /> Add team</Button>
+          </div>
         </div>
         {challenge.teams.length === 0 ? (
           <EmptyState title="No teams yet" description="Create teams of up to the configured size and assign the top three places." />
+        ) : view === "grid" ? (
+          <CardGrid>
+            {challenge.teams.map((t) => {
+              const over = t.memberIds.length > challenge.maxTeamSize;
+              return (
+                <RecordCard
+                  key={t.id}
+                  title={t.name}
+                  subtitle={
+                    <>
+                      {t.memberIds.slice(0, 4).map((id) => studentMap.get(id)?.name.split(" ")[1] ?? id).join(", ")}
+                      {t.memberIds.length > 4 ? ` +${t.memberIds.length - 4}` : ""}
+                    </>
+                  }
+                  leading={<Badge variant={over ? "danger" : "secondary"} className="h-7 px-2 tabular-nums">{t.memberIds.length} / {challenge.maxTeamSize}</Badge>}
+                  trailing={
+                    <>
+                      <Button variant="ghost" size="icon-sm" aria-label="Edit team" onClick={() => openEdit(t)}><PencilSquareIcon /></Button>
+                      <Button variant="ghost" size="icon-sm" aria-label="Remove team" className="text-destructive" onClick={() => removeTeam(t)}><TrashIcon /></Button>
+                    </>
+                  }
+                  footer={
+                    <>
+                      <span className="text-muted-foreground text-xs">Per student (split)</span>
+                      <span className="font-medium tabular-nums">{t.rank ? formatCurrency(memberPrize(t, challenge)) : "—"}</span>
+                    </>
+                  }
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <Select value={t.rank ? String(t.rank) : "none"} onValueChange={(v) => setRank(t.id, v)}>
+                      <SelectTrigger size="sm" className="w-32"><SelectValue /></SelectTrigger>
+                      <SelectContent>{RANK_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                    </Select>
+                    <CardFields columns={2} className="shrink-0">
+                      <CardField label="Team prize" align="right">{t.rank ? formatCurrency(teamPrize(t, challenge)) : "—"}</CardField>
+                    </CardFields>
+                  </div>
+                </RecordCard>
+              );
+            })}
+          </CardGrid>
         ) : (
           <Table>
             <TableHeader>

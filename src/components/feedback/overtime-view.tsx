@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { BellAlertIcon, ClockIcon, PaperAirplaneIcon } from "@heroicons/react/24/outline";
+import { BellAlertIcon, ClockIcon, CurrencyDollarIcon, PaperAirplaneIcon } from "@heroicons/react/24/outline";
 
 import { PageHeader } from "@/components/shared/page-header";
 import { KpiCard } from "@/components/shared/kpi-card";
@@ -15,20 +15,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { CardField, CardFields, CardGrid, RecordCard, ViewToggle, useViewMode } from "@/components/shared/view-toggle";
 import { useAuth } from "@/lib/auth/auth-context";
 import { useAppStore } from "@/lib/store/app-store";
 import { useToast } from "@/hooks/use-toast";
 import { CLASSROOMS } from "@/lib/data/students";
-import { formatDate } from "@/lib/utils/format";
+import { formatCurrency, formatDate } from "@/lib/utils/format";
 import { overtimeReportSchema, type OvertimeReportValues } from "@/lib/validation/schemas";
 import { TODAY } from "@/lib/data/seed";
 
 export function OvertimeView() {
   const { user } = useAuth();
-  const { overtimeReports, addOvertimeReport, notifications } = useAppStore();
+  const { overtimeReports, addOvertimeReport, notifications, instructorExtraRate } = useAppStore();
   const { toast } = useToast();
   const mine = overtimeReports.filter((r) => r.instructorId === user?.id);
   const reminders = notifications.filter((n) => n.type === "overtime-reminder");
+  const [view, setView] = useViewMode("overtime-reports");
 
   const form = useForm<OvertimeReportValues>({
     resolver: zodResolver(overtimeReportSchema),
@@ -42,14 +44,26 @@ export function OvertimeView() {
   };
 
   const totalHours = mine.reduce((a, r) => a + r.hours, 0);
+  const approvedHours = mine.filter((r) => r.status === "approved").reduce((a, r) => a + r.hours, 0);
+  const pendingHours = mine.filter((r) => r.status === "submitted").reduce((a, r) => a + r.hours, 0);
+  const pay = (h: number) => Math.round(h * instructorExtraRate * 100) / 100;
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Overtime & extra-class reports" description="Submit the extra-class sessions you taught and review reminders for your standby days." />
+      <PageHeader
+        title="Overtime & extra-class reports"
+        description={`Submit the extra-class sessions you taught and review reminders for your standby days. Approved hours are paid at ${formatCurrency(instructorExtraRate)}/h.`}
+      />
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <KpiCard label="Reported hours" value={`${totalHours} h`} hint="this term" icon={<ClockIcon />} tone="primary" />
-        <KpiCard label="Awaiting approval" value={mine.filter((r) => r.status === "submitted").length} tone="warning" />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <KpiCard label="Reported hours" value={`${totalHours} h`} hint={`${approvedHours} h approved this term`} icon={<ClockIcon />} tone="primary" />
+        <KpiCard label="Approved pay" value={formatCurrency(pay(approvedHours))} hint={`at ${formatCurrency(instructorExtraRate)}/h`} icon={<CurrencyDollarIcon />} tone="success" />
+        <KpiCard
+          label="Awaiting approval"
+          value={mine.filter((r) => r.status === "submitted").length}
+          hint={pendingHours ? `${pendingHours} h · ${formatCurrency(pay(pendingHours))} if approved` : "all sessions reviewed"}
+          tone={pendingHours ? "warning" : "default"}
+        />
         <KpiCard label="Standby days" value={user?.standbyDays?.join(" · ") ?? "—"} hint="extra-class reminders are sent on these days" />
       </div>
 
@@ -93,7 +107,39 @@ export function OvertimeView() {
         </Card>
 
         <div className="space-y-4">
-          <Card className="py-0">
+          <Card className="gap-0 py-0">
+            <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
+              <p className="text-sm font-medium">
+                My reports <span className="text-muted-foreground font-normal">· {mine.length}</span>
+              </p>
+              <ViewToggle value={view} onChange={setView} />
+            </div>
+            {view === "grid" ? (
+              mine.length === 0 ? (
+                <p className="text-muted-foreground py-8 text-center text-sm">No reports yet.</p>
+              ) : (
+                <CardGrid columns={2}>
+                  {mine.map((r) => (
+                    <RecordCard
+                      key={r.id}
+                      title={r.subject}
+                      subtitle={`${formatDate(r.date)} · ${r.classroom}`}
+                      trailing={
+                        <Badge variant={r.status === "approved" ? "success" : r.status === "rejected" ? "danger" : "warning"}>
+                          {r.status === "approved" ? "Approved" : r.status === "rejected" ? "Rejected" : "Submitted"}
+                        </Badge>
+                      }
+                    >
+                      <CardFields>
+                        <CardField label="Hours">{r.hours} h</CardField>
+                        <CardField label="Pay" align="right">{r.status === "approved" ? formatCurrency(pay(r.hours)) : "—"}</CardField>
+                      </CardFields>
+                      {r.notes && <p className="text-muted-foreground text-xs">{r.notes}</p>}
+                    </RecordCard>
+                  ))}
+                </CardGrid>
+              )
+            ) : (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -102,6 +148,7 @@ export function OvertimeView() {
                   <TableHead>Subject</TableHead>
                   <TableHead className="text-right">Hours</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Pay</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -114,12 +161,18 @@ export function OvertimeView() {
                       {r.notes && <p className="text-muted-foreground text-xs">{r.notes}</p>}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{r.hours}</TableCell>
-                    <TableCell><Badge variant={r.status === "approved" ? "success" : "warning"}>{r.status === "approved" ? "Approved" : "Submitted"}</Badge></TableCell>
+                    <TableCell>
+                      <Badge variant={r.status === "approved" ? "success" : r.status === "rejected" ? "danger" : "warning"}>
+                        {r.status === "approved" ? "Approved" : r.status === "rejected" ? "Rejected" : "Submitted"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">{r.status === "approved" ? formatCurrency(pay(r.hours)) : "—"}</TableCell>
                   </TableRow>
                 ))}
-                {mine.length === 0 && <TableRow><TableCell colSpan={5} className="text-muted-foreground py-8 text-center">No reports yet.</TableCell></TableRow>}
+                {mine.length === 0 && <TableRow><TableCell colSpan={6} className="text-muted-foreground py-8 text-center">No reports yet.</TableCell></TableRow>}
               </TableBody>
             </Table>
+            )}
           </Card>
 
           <Card>

@@ -12,6 +12,7 @@ import {
   Pie,
   PieChart,
   ResponsiveContainer,
+  Sector,
   Tooltip,
   XAxis,
   YAxis,
@@ -322,7 +323,7 @@ export function SimpleLineChart({
 }
 
 /* ------------------------------------------------------------------ */
-/* Labelled donut (share-of-total with value + % inside each slice)    */
+/* Labelled pie (share-of-total with value + % inside each slice)      */
 /* ------------------------------------------------------------------ */
 
 export interface PieSlice extends NamedValue {
@@ -333,28 +334,27 @@ interface PieLabelProps {
   cx?: number;
   cy?: number;
   midAngle?: number;
-  innerRadius?: number;
   outerRadius?: number;
   percent?: number;
   value?: number;
 }
 
 function renderSliceLabel(props: PieLabelProps) {
-  const { cx = 0, cy = 0, midAngle = 0, innerRadius = 0, outerRadius = 0, percent = 0, value = 0 } = props;
-  if (percent < 0.06) return null; // too thin to label – the legend carries it
+  const { cx = 0, cy = 0, midAngle = 0, outerRadius = 0, percent = 0, value = 0 } = props;
+  if (percent < 0.05) return null; // too thin to label – the legend carries it
   const RAD = Math.PI / 180;
-  const r = (innerRadius + outerRadius) / 2;
+  const twoLine = percent >= 0.1;
+  const r = outerRadius * (percent >= 0.25 ? 0.58 : twoLine ? 0.66 : 0.74);
   const x = cx + r * Math.cos(-midAngle * RAD);
   const y = cy + r * Math.sin(-midAngle * RAD);
-  const twoLine = percent >= 0.12;
   return (
     <text x={x} y={y} fill="#fff" textAnchor="middle" dominantBaseline="central" style={{ pointerEvents: "none" }}>
       {twoLine ? (
         <>
-          <tspan x={x} dy={-6} fontSize={15} fontWeight={700}>
+          <tspan x={x} dy={-6} fontSize={percent >= 0.25 ? 18 : 15} fontWeight={700}>
             {value}
           </tspan>
-          <tspan x={x} dy={15} fontSize={10.5} fontWeight={600} opacity={0.85}>
+          <tspan x={x} dy={percent >= 0.25 ? 17 : 15} fontSize={11} fontWeight={600} opacity={0.85}>
             {Math.round(percent * 100)}%
           </tspan>
         </>
@@ -367,50 +367,85 @@ function renderSliceLabel(props: PieLabelProps) {
   );
 }
 
+interface ActiveSectorProps {
+  cx?: number;
+  cy?: number;
+  innerRadius?: number;
+  outerRadius?: number;
+  startAngle?: number;
+  endAngle?: number;
+  fill?: string;
+  cornerRadius?: number;
+}
+
+/** The hovered slice lifts outward with a soft shadow. */
+function renderActiveSlice(props: ActiveSectorProps) {
+  const { cx = 0, cy = 0, innerRadius = 0, outerRadius = 0, startAngle = 0, endAngle = 0, fill, cornerRadius } = props;
+  return (
+    <Sector
+      cx={cx}
+      cy={cy}
+      innerRadius={innerRadius}
+      outerRadius={outerRadius + 8}
+      startAngle={startAngle}
+      endAngle={endAngle}
+      cornerRadius={cornerRadius}
+      fill={fill}
+      stroke="none"
+      style={{ filter: "drop-shadow(0 6px 14px rgba(18, 25, 32, 0.22))", outline: "none" }}
+    />
+  );
+}
+
 export function LabelledPieChart({
   data,
   height = 300,
-  centerLabel,
+  activeName = null,
+  onActiveChange,
 }: {
   data: PieSlice[];
   height?: number;
-  /** Shown in the hole of the donut; defaults to the total. */
-  centerLabel?: { value: React.ReactNode; label: React.ReactNode; color?: string };
+  /** Name of the slice to highlight (e.g. from a hovered legend item). */
+  activeName?: string | null;
+  /** Fires when the pointer enters / leaves a slice. */
+  onActiveChange?: (name: string | null) => void;
 }) {
   const total = data.reduce((a, d) => a + d.value, 0);
-  const center = centerLabel ?? { value: total, label: "total" };
+  const activeIndex = activeName ? data.findIndex((d) => d.name === activeName) : -1;
   return (
-    <div className="relative" style={{ height }}>
+    <div style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <Pie
             data={data}
             dataKey="value"
             nameKey="name"
-            innerRadius="54%"
-            outerRadius="94%"
-            paddingAngle={2.5}
-            cornerRadius={5}
+            innerRadius={0}
+            outerRadius="88%"
+            paddingAngle={1.5}
+            cornerRadius={4}
             stroke="none"
             startAngle={90}
             endAngle={-270}
             labelLine={false}
             label={renderSliceLabel}
+            activeIndex={activeIndex >= 0 ? activeIndex : undefined}
+            activeShape={renderActiveSlice}
+            onMouseEnter={(_, i) => onActiveChange?.(data[i]?.name ?? null)}
+            onMouseLeave={() => onActiveChange?.(null)}
             isAnimationActive={false}
           >
             {data.map((d) => (
-              <Cell key={d.name} fill={d.color} style={{ transition: "fill 200ms ease", outline: "none" }} />
+              <Cell
+                key={d.name}
+                fill={activeIndex >= 0 && d.name !== activeName ? `color-mix(in srgb, ${d.color} 38%, var(--card))` : d.color}
+                style={{ transition: "fill 180ms ease", outline: "none", cursor: onActiveChange ? "pointer" : undefined }}
+              />
             ))}
           </Pie>
           <Tooltip content={<ChartTooltip total={total} />} cursor={false} />
         </PieChart>
       </ResponsiveContainer>
-      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-        <span className="text-3xl font-semibold tracking-tight tabular-nums" style={center.color ? { color: center.color } : undefined}>
-          {center.value}
-        </span>
-        <span className="text-muted-foreground max-w-[7.5rem] text-[11px] leading-tight font-medium">{center.label}</span>
-      </div>
     </div>
   );
 }

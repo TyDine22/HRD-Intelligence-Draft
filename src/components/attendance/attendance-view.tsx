@@ -20,7 +20,8 @@ import { STUDENTS, CLASSROOMS } from "@/lib/data/students";
 import { ATTENDANCE, MONTHS } from "@/lib/data/academics";
 import { TODAY } from "@/lib/data/seed";
 import { formatDate, formatMonth, weekdayOf } from "@/lib/utils/format";
-import { exportCsv } from "@/lib/utils/export";
+import { ExportPreviewDialog, type ExportSpec } from "@/components/shared/export-preview-dialog";
+import { CardField, CardFields, CardGrid, RecordCard, ViewToggle, useViewMode } from "@/components/shared/view-toggle";
 import type { AttendanceStatus } from "@/lib/data/types";
 
 type DateMode = "month" | "day";
@@ -60,15 +61,22 @@ export function AttendanceView() {
   const { page, setPage, pageSize, slice, total } = usePagination(filtered, 20);
   React.useEffect(() => setPage(1), [query, classroom, status, mode, month, day, setPage]);
 
-  const exportRows = () =>
-    exportCsv(
-      `attendance_${mode === "month" ? month : day}`,
-      ["Date", "Student ID", "Student", "Class", "Check-in", "Check-out", "Status"],
-      filtered.map((r) => {
-        const s = studentMap.get(r.studentId)!;
-        return [r.date, s.id, s.name, s.classroom, r.checkIn ?? "", r.checkOut ?? "", r.status];
-      })
-    );
+  const [exportOpen, setExportOpen] = React.useState(false);
+  const [view, setView] = useViewMode("attendance");
+  const buildExport = (): ExportSpec => ({
+    filename: `attendance_${mode === "month" ? month : day}`,
+    columns: ["Date", "Student ID", "Student", "Class", "Check-in", "Check-out", "Status"],
+    rows: filtered.map((r) => {
+      const s = studentMap.get(r.studentId)!;
+      return [r.date, s.id, s.name, s.classroom, r.checkIn ?? "", r.checkOut ?? "", r.status];
+    }),
+    summary: [
+      { label: "Attendance rate", value: `${summary.rate}%` },
+      { label: "Present", value: summary.Present + summary.Late },
+      { label: "Absent", value: summary.Absent },
+      { label: "Permission", value: summary.Permission },
+    ],
+  });
 
   return (
     <div className="space-y-6">
@@ -76,9 +84,12 @@ export function AttendanceView() {
         title="Attendance"
         description="Daily check-in and check-out records synchronised from the RDA attendance API."
         actions={
-          <Button variant="outline" onClick={exportRows}>
-            <ArrowDownTrayIcon /> Export CSV
-          </Button>
+          <>
+            <Button variant="outline" onClick={() => setExportOpen(true)}>
+              <ArrowDownTrayIcon /> Export CSV
+            </Button>
+            <ExportPreviewDialog open={exportOpen} onOpenChange={setExportOpen} build={buildExport} title="Export attendance" />
+          </>
         }
       />
 
@@ -127,11 +138,30 @@ export function AttendanceView() {
             ) : (
               <Input type="date" value={day} onChange={(e) => setDay(e.target.value)} className="bg-card h-8 w-40 text-xs" min="2026-07-06" max={TODAY} />
             )}
+            <ViewToggle value={view} onChange={setView} className="ml-auto" />
           </div>
         </div>
 
         {slice.length === 0 ? (
           <EmptyState title="No attendance records" description={mode === "day" ? "No check-ins on this date (weekend or outside the term)." : "Try a different month, class or status."} />
+        ) : view === "grid" ? (
+          <CardGrid columns={4}>
+            {slice.map((r) => {
+              const s = studentMap.get(r.studentId)!;
+              return (
+                <RecordCard key={r.id} href={`/students/${s.id}`} title={s.name} subtitle={`${s.id} · ${s.classroom}`} trailing={<AttendanceBadge status={r.status} />}>
+                  <CardFields columns={3}>
+                    <CardField label="Date">
+                      {formatDate(r.date)}
+                      <span className="text-muted-foreground block text-xs">{weekdayOf(r.date)}</span>
+                    </CardField>
+                    <CardField label="Check-in">{r.checkIn ?? "—"}</CardField>
+                    <CardField label="Check-out">{r.checkOut ?? "—"}</CardField>
+                  </CardFields>
+                </RecordCard>
+              );
+            })}
+          </CardGrid>
         ) : (
           <Table>
             <TableHeader>
