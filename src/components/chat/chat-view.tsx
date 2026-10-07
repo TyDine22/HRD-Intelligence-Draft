@@ -3,35 +3,38 @@
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
 import {
+  ArrowUpRightIcon,
+  BriefcaseIcon,
+  ChartBarIcon,
   CheckIcon,
-  FolderIcon,
+  DocumentTextIcon,
+  EnvelopeIcon,
+  ExclamationTriangleIcon,
+  GlobeAltIcon,
   MicrophoneIcon,
   PaperAirplaneIcon,
   PencilIcon,
   PlusIcon,
-  SparklesIcon,
   TrashIcon,
+  TrophyIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
 
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { SearchInput } from "@/components/shared/search-input";
 import { useAuth } from "@/lib/auth/auth-context";
 import { useAppStore } from "@/lib/store/app-store";
 import { useToast } from "@/hooks/use-toast";
 import { MAX_SESSIONS, SUGGESTED_PROMPTS, generateReply } from "@/lib/data/chat";
-import { formatDateTime, relativeTime } from "@/lib/utils/format";
-import type { ChatMessage, ChatScope, ChatSession, FileNode } from "@/lib/data/types";
+import { relativeTime } from "@/lib/utils/format";
+import type { ChatMessage, ChatScope, ChatSession } from "@/lib/data/types";
 import { cn } from "@/lib/utils";
-import { MessageAttachment } from "./message-attachment";
-import { FileIcon } from "@/components/files/file-icon";
+import { AssistantAvatar, MessageBubble, ThinkingBubble } from "@/components/chat/chat-parts";
 
 type SpeechRecognitionLike = {
   lang: string;
@@ -43,12 +46,39 @@ type SpeechRecognitionLike = {
   stop: () => void;
 };
 
+const PROMPT_STYLES = [
+  { icon: ChartBarIcon, tone: "bg-primary/10 text-primary" },
+  { icon: TrophyIcon, tone: "bg-chart-3/15 text-chart-3" },
+  { icon: ExclamationTriangleIcon, tone: "bg-chart-4/10 text-chart-4" },
+  { icon: BriefcaseIcon, tone: "bg-chart-2/15 text-chart-2" },
+  { icon: EnvelopeIcon, tone: "bg-chart-5/10 text-chart-5" },
+  { icon: DocumentTextIcon, tone: "bg-info/15 text-info" },
+];
+
+function groupSessions(list: ChatSession[]) {
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const day = 24 * 60 * 60 * 1000;
+  const groups: { label: string; items: ChatSession[] }[] = [
+    { label: "Today", items: [] },
+    { label: "Previous 7 days", items: [] },
+    { label: "Older", items: [] },
+  ];
+  for (const s of list) {
+    const t = new Date(s.updatedAt).getTime();
+    if (t >= startOfToday) groups[0].items.push(s);
+    else if (t >= startOfToday - 7 * day) groups[1].items.push(s);
+    else groups[2].items.push(s);
+  }
+  return groups.filter((g) => g.items.length > 0);
+}
+
 export function ChatView() {
   const { user, role } = useAuth();
-  const { sessions, createSession, renameSession, deleteSession, appendMessage, updateAttachment, setSessionScope, files } = useAppStore();
+  const { sessions, createSession, renameSession, deleteSession, appendMessage } = useAppStore();
   const { toast } = useToast();
   const searchParams = useSearchParams();
-  const folderParam = searchParams.get("folder");
+  const sessionParam = searchParams.get("session");
 
   const [activeId, setActiveId] = React.useState<string | null>(null);
   const [sessionQuery, setSessionQuery] = React.useState("");
@@ -57,43 +87,23 @@ export function ChatView() {
   const [listening, setListening] = React.useState(false);
   const [renaming, setRenaming] = React.useState<ChatSession | null>(null);
   const [renameValue, setRenameValue] = React.useState("");
-  const [scopeOpen, setScopeOpen] = React.useState(false);
-  const [scopeFolder, setScopeFolder] = React.useState<string>("");
-  const [scopeFiles, setScopeFiles] = React.useState<string[]>([]);
   const bottomRef = React.useRef<HTMLDivElement>(null);
   const recognitionRef = React.useRef<SpeechRecognitionLike | null>(null);
-  const handledFolderParam = React.useRef<string | null>(null);
-
   const me = user?.id ?? "";
-  const accessibleFolders = React.useMemo(() => {
-    const byId = new Map(files.map((f) => [f.id, f]));
-    const canSee = (n: FileNode): boolean => {
-      let cur: FileNode | undefined = n;
-      while (cur) {
-        if (cur.ownerId === me || cur.shares.some((s) => s.userId === me)) return true;
-        cur = cur.parentId ? byId.get(cur.parentId) : undefined;
-      }
-      return false;
-    };
-    return files.filter((f) => f.kind === "folder" && canSee(f));
-  }, [files, me]);
-
   const active = sessions.find((s) => s.id === activeId) ?? null;
 
-  // Create a folder-scoped session when arriving from Data Management (?folder=ID)
+  // Open a specific conversation when expanded from the floating assistant (?session=ID)
+  const handledSessionParam = React.useRef<string | null>(null);
   React.useEffect(() => {
-    if (!folderParam || handledFolderParam.current === folderParam) return;
-    handledFolderParam.current = folderParam;
-    const folder = files.find((f) => f.id === folderParam && f.kind === "folder");
-    if (!folder) return;
-    const fileIds = files.filter((f) => f.parentId === folder.id && f.kind === "file").map((f) => f.id);
-    const s = createSession({ type: "folder", folderId: folder.id, fileIds }, `Chat · ${folder.name}`);
-    setActiveId(s.id);
-  }, [folderParam, files, createSession]);
+    if (!sessionParam || handledSessionParam.current === sessionParam) return;
+    if (!sessions.some((s) => s.id === sessionParam)) return;
+    handledSessionParam.current = sessionParam;
+    setActiveId(sessionParam);
+  }, [sessionParam, sessions]);
 
   React.useEffect(() => {
-    if (!activeId && sessions.length && !folderParam) setActiveId(sessions[0].id);
-  }, [activeId, sessions, folderParam]);
+    if (!activeId && sessions.length && !sessionParam) setActiveId(sessions[0].id);
+  }, [activeId, sessions, sessionParam]);
 
   React.useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -153,166 +163,199 @@ export function ChatView() {
   };
 
   const filteredSessions = sessions.filter((s) => s.title.toLowerCase().includes(sessionQuery.toLowerCase()));
-  const folderScope = active && active.scope.type === "folder" ? active.scope : null;
-  const scopeFolderNode = folderScope ? files.find((f) => f.id === folderScope.folderId) : undefined;
-  const scopeFileNodes = folderScope ? files.filter((f) => f.parentId === folderScope.folderId && f.kind === "file") : [];
 
-  const openScope = () => {
-    if (active?.scope.type === "folder") {
-      setScopeFolder(active.scope.folderId);
-      setScopeFiles(active.scope.fileIds);
-    } else {
-      setScopeFolder(accessibleFolders[0]?.id ?? "");
-      setScopeFiles(files.filter((f) => f.parentId === accessibleFolders[0]?.id && f.kind === "file").map((f) => f.id));
-    }
-    setScopeOpen(true);
-  };
-
-  const applyScope = (general: boolean) => {
-    if (!active) return;
-    if (general) setSessionScope(active.id, { type: "general" });
-    else setSessionScope(active.id, { type: "folder", folderId: scopeFolder, fileIds: scopeFiles });
-    setScopeOpen(false);
-  };
+  const sessionGroups = groupSessions(filteredSessions);
+  const firstName = user?.name?.split(" ")[0] ?? "there";
 
   return (
-    <div className="bg-card flex h-[calc(100vh-8.5rem)] min-h-[560px] overflow-hidden rounded-xl border shadow-sm">
+    <div className="relative flex h-[calc(100dvh-4rem)] min-h-[520px] overflow-hidden">
       {/* Sessions */}
-      <aside className="hidden w-72 shrink-0 flex-col border-r md:flex">
-        <div className="space-y-2 border-b p-3">
-          <Button className="w-full" onClick={() => newSession()}><PlusIcon /> New chat</Button>
-          <SearchInput value={sessionQuery} onChange={setSessionQuery} placeholder="Search conversations…" />
+      <aside className="bg-muted/40 hidden w-72 shrink-0 flex-col md:flex">
+        <div className="space-y-3 p-4">
+          <Button
+            className="from-primary to-chart-5 h-10 w-full rounded-xl bg-gradient-to-r shadow-md shadow-primary/20 transition-shadow hover:shadow-lg hover:shadow-primary/30"
+            onClick={() => newSession()}
+          >
+            <PlusIcon /> New chat
+          </Button>
+          <SearchInput value={sessionQuery} onChange={setSessionQuery} placeholder="Search conversations…" className="[&_input]:rounded-xl [&_input]:border-0 [&_input]:shadow-sm" />
         </div>
-        <div className="scrollbar-thin flex-1 overflow-y-auto p-2">
-          <p className="text-muted-foreground px-2 py-1 text-[11px] font-semibold uppercase tracking-wider">Recent · {sessions.length}/{MAX_SESSIONS}</p>
-          {filteredSessions.map((s) => (
-            <div key={s.id} className={cn("group flex items-center gap-1 rounded-md pr-1", s.id === activeId ? "bg-accent" : "hover:bg-accent/60")}>
-              <button type="button" onClick={() => setActiveId(s.id)} className="min-w-0 flex-1 cursor-pointer px-2 py-2 text-left">
-                <p className="truncate text-sm font-medium">{s.title}</p>
-                <p className="text-muted-foreground flex items-center gap-1 truncate text-[11px]">
-                  {s.scope.type === "folder" && <FolderIcon className="size-3" />}
-                  {relativeTime(s.updatedAt)} · {s.messages.length} msg
-                </p>
-              </button>
-              <div className="hidden shrink-0 items-center group-hover:flex">
-                <Button variant="ghost" size="icon-sm" aria-label="Rename" onClick={() => { setRenaming(s); setRenameValue(s.title); }}><PencilIcon /></Button>
-                <Button variant="ghost" size="icon-sm" aria-label="Delete" onClick={() => { deleteSession(s.id); if (activeId === s.id) setActiveId(null); }}><TrashIcon /></Button>
+        <div className="scrollbar-thin flex-1 space-y-4 overflow-y-auto px-3 pb-3">
+          {sessionGroups.map((g) => (
+            <div key={g.label}>
+              <p className="text-muted-foreground px-2 pb-1.5 text-[11px] font-semibold uppercase tracking-wider">{g.label}</p>
+              <div className="space-y-0.5">
+                {g.items.map((s) => {
+                  const selected = s.id === activeId;
+                  return (
+                    <div
+                      key={s.id}
+                      className={cn(
+                        "group relative flex items-center gap-1 rounded-xl pr-1 transition-all",
+                        selected ? "bg-card shadow-sm" : "hover:bg-card/60"
+                      )}
+                    >
+                      {selected && <span className="from-primary to-chart-5 absolute top-2.5 bottom-2.5 left-0 w-1 rounded-full bg-gradient-to-b" />}
+                      <button type="button" onClick={() => setActiveId(s.id)} className="min-w-0 flex-1 cursor-pointer px-3 py-2.5 text-left">
+                        <p className={cn("truncate text-sm", selected ? "font-semibold" : "font-medium")}>{s.title}</p>
+                        <p className="text-muted-foreground flex items-center gap-1 truncate text-[11px]">
+                          {relativeTime(s.updatedAt)} · {s.messages.length} msg
+                        </p>
+                      </button>
+                      <div className="hidden shrink-0 items-center group-hover:flex">
+                        <Button variant="ghost" size="icon-sm" className="rounded-lg" aria-label="Rename" onClick={() => { setRenaming(s); setRenameValue(s.title); }}><PencilIcon /></Button>
+                        <Button variant="ghost" size="icon-sm" className="hover:text-destructive rounded-lg" aria-label="Delete" onClick={() => { deleteSession(s.id); if (activeId === s.id) setActiveId(null); }}><TrashIcon /></Button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ))}
           {filteredSessions.length === 0 && <p className="text-muted-foreground px-2 py-6 text-center text-xs">No conversations</p>}
         </div>
-        <p className="text-muted-foreground border-t p-3 text-[11px]">Only the 10 most recent sessions are stored.</p>
+        <div className="px-4 pb-4">
+          <div className="bg-card rounded-xl p-3 shadow-sm">
+            <div className="mb-1.5 flex items-center justify-between text-[11px]">
+              <span className="text-muted-foreground font-medium">Stored sessions</span>
+              <span className="font-semibold">{sessions.length}/{MAX_SESSIONS}</span>
+            </div>
+            <div className="bg-muted h-1.5 overflow-hidden rounded-full">
+              <div className="from-primary to-chart-5 h-full rounded-full bg-gradient-to-r transition-all" style={{ width: `${Math.min(100, (sessions.length / MAX_SESSIONS) * 100)}%` }} />
+            </div>
+            <p className="text-muted-foreground mt-1.5 text-[10px]">Only the 10 most recent sessions are kept.</p>
+          </div>
+        </div>
       </aside>
 
       {/* Conversation */}
-      <section className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between gap-3 border-b px-4 py-3">
+      <section className="bg-background relative flex min-w-0 flex-1 flex-col">
+        {/* Ambient glow */}
+        <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="bg-primary/10 absolute -top-32 left-1/2 size-[520px] -translate-x-1/2 rounded-full blur-3xl" />
+          <div className="bg-chart-2/10 absolute -right-24 bottom-10 size-80 rounded-full blur-3xl" />
+        </div>
+
+        <header className="relative z-10 flex items-center justify-between gap-3 px-4 py-3 md:px-6">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg"><SparklesIcon className="size-5" /></div>
-            <div className="min-w-0">
+            <AssistantAvatar className="size-9" />
+            <div className="hidden min-w-0 sm:block">
               <p className="truncate text-sm font-semibold">{active?.title ?? "HRD Assistant"}</p>
-              <p className="text-muted-foreground truncate text-xs">
-                {active?.scope.type === "folder" ? `Folder-specific · ${scopeFolderNode?.name} · ${active.scope.fileIds.length} file${active.scope.fileIds.length === 1 ? "" : "s"}` : "General HRD assistant · RAG + local LLM · English"}
+              <p className="text-muted-foreground flex items-center gap-1.5 truncate text-xs">
+                <span className="bg-success relative flex size-1.5 rounded-full"><span className="bg-success absolute inline-flex size-full animate-ping rounded-full opacity-60" /></span>
+                Online · RAG + local LLM
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <Select value={activeId ?? ""} onValueChange={setActiveId}>
-              <SelectTrigger size="sm" className="w-44 md:hidden"><SelectValue placeholder="Conversation" /></SelectTrigger>
+              <SelectTrigger size="sm" className="w-40 rounded-xl border-0 shadow-sm md:hidden"><SelectValue placeholder="Conversation" /></SelectTrigger>
               <SelectContent>{sessions.map((s) => <SelectItem key={s.id} value={s.id}>{s.title}</SelectItem>)}</SelectContent>
             </Select>
-            <Button variant="outline" size="sm" onClick={openScope} disabled={!active}><FolderIcon /> {active?.scope.type === "folder" ? "Change scope" : "Folder scope"}</Button>
-            <Button variant="ghost" size="icon-sm" className="md:hidden" aria-label="New chat" onClick={() => newSession()}><PlusIcon /></Button>
+            <Button variant="ghost" size="icon-sm" className="bg-card rounded-xl shadow-sm md:hidden" aria-label="New chat" onClick={() => newSession()}><PlusIcon /></Button>
           </div>
         </header>
 
-        <div className="scrollbar-thin flex-1 overflow-y-auto px-4 py-5">
+        <div className="scrollbar-thin relative z-10 flex-1 overflow-y-auto px-4 md:px-6">
           {!active || active.messages.length === 0 ? (
-            <div className="mx-auto flex h-full max-w-2xl flex-col items-center justify-center text-center">
-              <div className="bg-primary/10 text-primary mb-4 flex size-14 items-center justify-center rounded-2xl"><SparklesIcon className="size-7" /></div>
-              <h2 className="text-lg font-semibold">How can I help with HRD today?</h2>
-              <p className="text-muted-foreground mt-1 max-w-md text-sm">
-                Ask about students, attendance, scores, allowances, alumni or HRD policies. I can generate summaries, charts, files and draft emails (with your confirmation).
+            <div className="mx-auto flex min-h-full max-w-3xl flex-col items-center justify-center py-10 text-center">
+              <div className="relative mb-6">
+                <div className="from-primary to-chart-5 absolute inset-0 rounded-[28px] bg-gradient-to-br opacity-40 blur-xl" />
+                <AssistantAvatar className="relative size-16 rounded-[22px]" iconClassName="size-8" />
+              </div>
+              <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+                Hi {firstName},{" "}
+                <span className="from-primary to-chart-5 bg-gradient-to-r bg-clip-text text-transparent">how can I help today?</span>
+              </h2>
+              <p className="text-muted-foreground mt-2 max-w-lg text-sm">
+                Ask about students, attendance, scores, allowances, alumni or HRD policies. I can build summaries, charts, files and draft emails (with your confirmation).
               </p>
-              <div className="mt-6 grid w-full gap-2 sm:grid-cols-2">
-                {SUGGESTED_PROMPTS.map((p) => (
-                  <button key={p} type="button" onClick={() => send(p)} className="hover:bg-accent cursor-pointer rounded-lg border px-3 py-2.5 text-left text-sm transition-colors">{p}</button>
-                ))}
+              <div className="mt-8 grid w-full gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {SUGGESTED_PROMPTS.map((p, i) => {
+                  const { icon: Icon, tone } = PROMPT_STYLES[i % PROMPT_STYLES.length];
+                  return (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => send(p)}
+                      className="bg-card group flex cursor-pointer flex-col items-start gap-3 rounded-2xl p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+                    >
+                      <span className={cn("flex size-9 items-center justify-center rounded-xl", tone)}><Icon className="size-5" /></span>
+                      <span className="text-sm leading-snug font-medium">{p}</span>
+                      <ArrowUpRightIcon className="text-muted-foreground group-hover:text-primary mt-auto size-4 self-end transition-colors" />
+                    </button>
+                  );
+                })}
               </div>
             </div>
           ) : (
-            <div className="mx-auto max-w-3xl space-y-5">
-              {folderScope && (
-                <div className="bg-muted/60 flex flex-wrap items-center gap-2 rounded-lg px-3 py-2 text-xs">
-                  <FolderIcon className="size-4" /> Answering strictly from:
-                  {scopeFileNodes.filter((f) => folderScope.fileIds.includes(f.id)).map((f) => (
-                    <Badge key={f.id} variant="outline" className="gap-1"><FileIcon kind="file" ext={f.ext} className="size-3" />{f.name}</Badge>
-                  ))}
-                </div>
-              )}
-              {active.messages.map((m) => (
-                <div key={m.id} className={cn("flex gap-3", m.role === "user" ? "justify-end" : "justify-start")}>
-                  {m.role === "assistant" && <div className="bg-primary/10 text-primary flex size-8 shrink-0 items-center justify-center rounded-lg"><SparklesIcon className="size-4" /></div>}
-                  <div className={cn("max-w-[85%] rounded-2xl px-4 py-3 text-sm", m.role === "user" ? "bg-primary text-primary-foreground rounded-br-md" : "bg-muted rounded-bl-md")}>
-                    <p className="whitespace-pre-wrap">{m.content}</p>
-                    {m.attachment && (
-                      <MessageAttachment
-                        attachment={m.attachment}
-                        onUpdate={(patch) => updateAttachment(active.id, m.id, patch)}
-                        onToast={(title, description) => toast({ title, description, variant: "success" })}
-                      />
-                    )}
-                    {m.sources && m.sources.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {m.sources.map((s) => <Badge key={s} variant="outline" className="bg-card text-[10px] font-normal">{s}</Badge>)}
-                      </div>
-                    )}
-                    <p className={cn("mt-1.5 text-[10px]", m.role === "user" ? "text-primary-foreground/70" : "text-muted-foreground")}>{formatDateTime(m.createdAt)}</p>
-                  </div>
-                </div>
-              ))}
-              {thinking && (
-                <div className="flex gap-3">
-                  <div className="bg-primary/10 text-primary flex size-8 shrink-0 items-center justify-center rounded-lg"><SparklesIcon className="size-4" /></div>
-                  <div className="bg-muted flex items-center gap-1 rounded-2xl rounded-bl-md px-4 py-3">
-                    <span className="bg-muted-foreground/60 size-1.5 animate-bounce rounded-full [animation-delay:-0.3s]" />
-                    <span className="bg-muted-foreground/60 size-1.5 animate-bounce rounded-full [animation-delay:-0.15s]" />
-                    <span className="bg-muted-foreground/60 size-1.5 animate-bounce rounded-full" />
-                  </div>
-                </div>
-              )}
+            <div className="mx-auto max-w-3xl space-y-6 pt-2 pb-6">
+              {active.messages.map((m) => <MessageBubble key={m.id} message={m} sessionId={active.id} />)}
+              {thinking && <ThinkingBubble />}
               <div ref={bottomRef} />
             </div>
           )}
         </div>
 
-        <div className="border-t p-3">
-          <div className="mx-auto flex max-w-3xl items-end gap-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant={listening ? "destructive" : "outline"} size="icon" onClick={toggleVoice} aria-label="Voice input" className={cn(listening && "animate-pulse")}>
-                  {listening ? <XMarkIcon /> : <MicrophoneIcon />}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{listening ? "Stop listening" : "Speech-to-text (English)"}</TooltipContent>
-            </Tooltip>
-            <Textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  send();
-                }
-              }}
-              placeholder={listening ? "Listening…" : "Ask about students, attendance, alumni, policies… (Enter to send)"}
-              rows={1}
-              className="max-h-40 min-h-10 resize-none"
-            />
-            <Button size="icon" onClick={() => send()} disabled={!input.trim() || thinking} aria-label="Send"><PaperAirplaneIcon /></Button>
+        {/* Composer */}
+        <div className="relative z-10 px-4 pt-2 pb-4 md:px-6">
+          <div className="mx-auto max-w-3xl">
+            <div
+              className={cn(
+                "bg-card rounded-3xl p-2 shadow-lg shadow-black/5 ring-1 ring-transparent transition-shadow focus-within:shadow-xl focus-within:ring-primary/25",
+                listening && "ring-destructive/40"
+              )}
+            >
+              <Textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    send();
+                  }
+                }}
+                placeholder={listening ? "Listening…" : "Ask about students, attendance, alumni, policies…"}
+                rows={1}
+                className="max-h-40 min-h-11 resize-none border-0 bg-transparent px-3 py-2.5 shadow-none focus-visible:ring-0 dark:bg-transparent"
+              />
+              <div className="flex items-center justify-between gap-2 px-1 pt-1">
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={toggleVoice}
+                        aria-label="Voice input"
+                        className={cn("rounded-full", listening && "bg-destructive text-destructive-foreground hover:bg-destructive/90 animate-pulse")}
+                      >
+                        {listening ? <XMarkIcon /> : <MicrophoneIcon />}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>{listening ? "Stop listening" : "Speech-to-text (English)"}</TooltipContent>
+                  </Tooltip>
+                  <span className="bg-muted text-muted-foreground inline-flex min-w-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium">
+                    <GlobeAltIcon className="size-3.5 shrink-0" />
+                    <span className="truncate">General knowledge</span>
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground hidden text-[10px] sm:inline">Enter to send · Shift+Enter for new line</span>
+                  <Button
+                    size="icon"
+                    onClick={() => send()}
+                    disabled={!input.trim() || thinking}
+                    aria-label="Send"
+                    className="from-primary to-chart-5 rounded-full bg-gradient-to-br shadow-md shadow-primary/25"
+                  >
+                    <PaperAirplaneIcon />
+                  </Button>
+                </div>
+              </div>
+            </div>
+            <p className="text-muted-foreground mt-2 text-center text-[11px]">Responses are generated locally from authorised HRD data. Email actions always require your confirmation.</p>
           </div>
-          <p className="text-muted-foreground mx-auto mt-2 max-w-3xl text-[11px]">Responses are generated locally from authorised HRD data. Email actions always require your confirmation.</p>
         </div>
       </section>
 
@@ -328,36 +371,6 @@ export function ChatView() {
         </DialogContent>
       </Dialog>
 
-      {/* Scope dialog */}
-      <Dialog open={scopeOpen} onOpenChange={setScopeOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Folder-specific chat</DialogTitle>
-            <DialogDescription>The assistant will answer strictly from the selected files. It can also generate slides from them.</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-3">
-            <Select value={scopeFolder} onValueChange={(v) => { setScopeFolder(v); setScopeFiles(files.filter((f) => f.parentId === v && f.kind === "file").map((f) => f.id)); }}>
-              <SelectTrigger className="w-full"><SelectValue placeholder="Choose a folder" /></SelectTrigger>
-              <SelectContent>{accessibleFolders.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}</SelectContent>
-            </Select>
-            <div className="max-h-56 overflow-y-auto rounded-lg border">
-              {files.filter((f) => f.parentId === scopeFolder && f.kind === "file").map((f) => (
-                <label key={f.id} className="hover:bg-accent/50 flex cursor-pointer items-center gap-3 border-b px-3 py-2 text-sm last:border-0">
-                  <Checkbox checked={scopeFiles.includes(f.id)} onCheckedChange={(v) => setScopeFiles((prev) => (v === true ? [...prev, f.id] : prev.filter((x) => x !== f.id)))} />
-                  <FileIcon kind="file" ext={f.ext} className="size-4" />
-                  <span className="truncate">{f.name}</span>
-                </label>
-              ))}
-              {scopeFolder && files.filter((f) => f.parentId === scopeFolder && f.kind === "file").length === 0 && <p className="text-muted-foreground px-3 py-4 text-xs">This folder has no files.</p>}
-            </div>
-          </div>
-          <DialogFooter>
-            {active?.scope.type === "folder" && <Button variant="ghost" onClick={() => applyScope(true)}>Switch to general</Button>}
-            <Button variant="outline" onClick={() => setScopeOpen(false)}>Cancel</Button>
-            <Button onClick={() => applyScope(false)} disabled={!scopeFolder || scopeFiles.length === 0}>Use {scopeFiles.length} file{scopeFiles.length === 1 ? "" : "s"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

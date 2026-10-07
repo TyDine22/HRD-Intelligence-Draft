@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowDownTrayIcon,
   ArrowsRightLeftIcon,
@@ -15,6 +16,7 @@ import {
   ListBulletIcon,
   PencilIcon,
   ShareIcon,
+  SparklesIcon,
   Squares2X2Icon,
   TrashIcon,
   UserIcon,
@@ -57,6 +59,7 @@ export function FilesView() {
   const { user } = useAuth();
   const { files, createFolder, uploadFiles, renameNode, moveNode, duplicateNode, deleteNode, shareNode, unshareNode } = useAppStore();
   const { toast } = useToast();
+  const router = useRouter();
   const [current, setCurrent] = React.useState<string | null>(null);
   const [query, setQuery] = React.useState("");
   const [ext, setExt] = React.useState("all");
@@ -147,13 +150,18 @@ export function FilesView() {
     return out;
   };
 
+  const download = (node: FileNode) => {
+    exportText(node.name, `Mock content for ${node.name}\nOwner: ${userById(node.ownerId)?.name}\nSize: ${formatBytes(node.size)}`);
+    toast({ title: "Download started", description: node.name });
+  };
+
+  // Folders open in place; files open the document viewer with its own AI chat (Drive style)
   const open = (node: FileNode) => {
     if (node.kind === "folder") {
       setCurrent(node.id);
       setQuery("");
     } else {
-      exportText(node.name, `Mock content for ${node.name}\nOwner: ${userById(node.ownerId)?.name}\nSize: ${formatBytes(node.size)}`);
-      toast({ title: "Download started", description: node.name });
+      router.push(`/files/${node.id}`);
     }
   };
 
@@ -204,12 +212,16 @@ export function FilesView() {
           <Button variant="ghost" size="icon-sm" aria-label="Actions" onClick={(e) => e.stopPropagation()}><EllipsisVerticalIcon /></Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-          {node.kind === "folder" && (
+          {node.kind === "folder" ? (
             <DropdownMenuItem asChild>
               <Link href={`/chat?folder=${node.id}`}><ChatBubbleLeftRightIcon /> Chat with this folder</Link>
             </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem asChild>
+              <Link href={`/files/${node.id}`}><SparklesIcon /> Open & ask AI</Link>
+            </DropdownMenuItem>
           )}
-          <DropdownMenuItem onSelect={() => (node.kind === "folder" ? exportZipManifest(node.name, files.filter((f) => descendants(node.id).has(f.id) && f.id !== node.id).map((f) => f.name)) : open(node))}>
+          <DropdownMenuItem onSelect={() => (node.kind === "folder" ? exportZipManifest(node.name, files.filter((f) => descendants(node.id).has(f.id) && f.id !== node.id).map((f) => f.name)) : download(node))}>
             <ArrowDownTrayIcon /> {node.kind === "folder" ? "Export as ZIP" : "Download"}
           </DropdownMenuItem>
           {canEdit && (
@@ -246,7 +258,7 @@ export function FilesView() {
         }
       />
 
-      <div className="bg-card rounded-xl border shadow-sm">
+      <div className="bg-card rounded-2xl shadow-sm">
         <div className="flex flex-col gap-3 border-b p-4">
           <nav className="flex flex-wrap items-center gap-1 text-sm" aria-label="Breadcrumb">
             <button type="button" onClick={() => { setCurrent(null); setQuery(""); }} className={cn("hover:bg-accent flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5", current === null && "font-semibold")}>
@@ -330,7 +342,7 @@ export function FilesView() {
         ) : (
           <div className="grid gap-3 p-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
             {listing.map((node) => (
-              <div key={node.id} role="button" tabIndex={0} onClick={() => open(node)} onKeyDown={(e) => e.key === "Enter" && open(node)} className="hover:bg-accent/50 group flex cursor-pointer flex-col gap-3 rounded-lg border p-3 transition-colors">
+              <div key={node.id} role="button" tabIndex={0} onClick={() => open(node)} onKeyDown={(e) => e.key === "Enter" && open(node)} className="bg-muted/40 hover:bg-accent/60 group flex cursor-pointer flex-col gap-3 rounded-2xl p-3 transition-all hover:shadow-sm">
                 <div className="flex items-start justify-between">
                   <FileIcon kind={node.kind} ext={node.ext} className="size-8" />
                   <span onClick={(e) => e.stopPropagation()}>{renderActions(node)}</span>
