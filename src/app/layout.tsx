@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { Inter } from "next/font/google";
+import { Albert_Sans } from "next/font/google";
 
 import { Providers } from "@/components/providers/providers";
 import "./globals.css";
 
-const inter = Inter({
+const albertSans = Albert_Sans({
   subsets: ["latin"],
-  variable: "--font-inter",
+  variable: "--font-albert-sans",
   display: "swap",
 });
 
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} font-sans`}>
+      <body className={`${albertSans.variable} font-sans`}>
         <Providers>{children}</Providers>
       </body>
     </html>

@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { CardGrid, RecordCard, ViewToggle, useViewMode } from "@/components/shared/view-toggle";
 import { useAppStore } from "@/lib/store/app-store";
 import { useToast } from "@/hooks/use-toast";
 import { formatDateTime } from "@/lib/utils/format";
@@ -65,6 +66,7 @@ export function AgentsView() {
   const { toast } = useToast();
   const scheduled = agents.filter((a) => a.kind === "scheduled");
   const triggered = agents.filter((a) => a.kind === "trigger");
+  const [view, setView] = useViewMode("agent-runs");
   const allRuns = agents.flatMap((a) => a.runs.map((r) => ({ ...r, agent: a.name }))).sort((a, b) => (a.startedAt < b.startedAt ? 1 : -1));
   const failures = allRuns.filter((r) => r.status === "failed").length;
 
@@ -105,6 +107,26 @@ export function AgentsView() {
         </TabsContent>
         <TabsContent value="history" className="pt-2">
           <div className="bg-card rounded-xl border shadow-sm">
+            <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
+              <p className="text-sm font-medium">
+                {allRuns.length} runs <span className="text-muted-foreground font-normal">· newest first</span>
+              </p>
+              <ViewToggle value={view} onChange={setView} />
+            </div>
+            {view === "grid" ? (
+              <CardGrid>
+                {allRuns.map((r) => (
+                  <RecordCard
+                    key={`${r.agent}-${r.id}`}
+                    title={r.agent}
+                    subtitle={formatDateTime(r.startedAt)}
+                    trailing={<Badge variant={r.status === "success" ? "success" : r.status === "failed" ? "danger" : "info"} className="capitalize">{r.status}</Badge>}
+                  >
+                    <p className="text-muted-foreground text-xs leading-relaxed">{r.summary}</p>
+                  </RecordCard>
+                ))}
+              </CardGrid>
+            ) : (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -125,6 +147,7 @@ export function AgentsView() {
                 ))}
               </TableBody>
             </Table>
+            )}
           </div>
         </TabsContent>
       </Tabs>

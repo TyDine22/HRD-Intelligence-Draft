@@ -19,7 +19,8 @@ import { STUDENTS, CLASSROOMS, GENERATIONS, initials } from "@/lib/data/students
 import { COURSES, courseByCode } from "@/lib/data/users";
 import { getStudentStats } from "@/lib/data/academics";
 import { formatDate } from "@/lib/utils/format";
-import { exportCsv } from "@/lib/utils/export";
+import { ExportPreviewDialog, type ExportSpec } from "@/components/shared/export-preview-dialog";
+import { CardField, CardFields, CardGrid, RecordCard, ViewToggle, useViewMode } from "@/components/shared/view-toggle";
 import { useAuth } from "@/lib/auth/auth-context";
 
 export function StudentsView() {
@@ -68,15 +69,22 @@ export function StudentsView() {
     setStatus("all");
   };
 
-  const exportRows = () =>
-    exportCsv(
-      "students",
-      ["ID", "Name", "Email", "Phone", "Gender", "DOB", "Generation", "Classroom", "Course", "Enrollment", "University", "Status", "Attendance %", "Avg score"],
-      filtered.map((s) => {
-        const st = getStudentStats(s.id);
-        return [s.id, s.name, s.email, s.phone, s.gender, s.dob, s.generation, s.classroom, courseByCode(s.courseCode).name, s.enrollmentDate, s.university, s.status, st.attendanceRate, st.averageScore];
-      })
-    );
+  const [exportOpen, setExportOpen] = React.useState(false);
+  const [view, setView] = useViewMode("students");
+  const buildExport = (): ExportSpec => ({
+    filename: "students",
+    columns: ["ID", "Name", "Email", "Phone", "Gender", "DOB", "Generation", "Classroom", "Course", "Enrollment", "University", "Status", "Attendance %", "Avg score"],
+    numericFrom: 12,
+    rows: filtered.map((s) => {
+      const st = getStudentStats(s.id);
+      return [s.id, s.name, s.email, s.phone, s.gender, s.dob, s.generation, s.classroom, courseByCode(s.courseCode).name, s.enrollmentDate, s.university, s.status, st.attendanceRate, st.averageScore];
+    }),
+    summary: [
+      { label: "Students", value: filtered.length },
+      { label: "Active", value: filtered.filter((s) => s.status === "active").length },
+      { label: "Classrooms", value: new Set(filtered.map((s) => s.classroom)).size },
+    ],
+  });
 
   return (
     <div className="space-y-6">
@@ -85,9 +93,12 @@ export function StudentsView() {
         description="Monitor student profiles, academic performance and personal information."
         actions={
           isAdmin ? (
-            <Button variant="outline" onClick={exportRows}>
-              <ArrowDownTrayIcon /> Export CSV
-            </Button>
+            <>
+              <Button variant="outline" onClick={() => setExportOpen(true)}>
+                <ArrowDownTrayIcon /> Export CSV
+              </Button>
+              <ExportPreviewDialog open={exportOpen} onOpenChange={setExportOpen} build={buildExport} title="Export students" />
+            </>
           ) : undefined
         }
       />
@@ -152,11 +163,49 @@ export function StudentsView() {
             {(query || generation !== "all" || classroom !== "all" || course !== "all" || status !== "all") && (
               <Button variant="ghost" size="sm" onClick={reset}>Clear</Button>
             )}
+            <ViewToggle value={view} onChange={setView} className="ml-auto" />
           </div>
         </div>
 
         {slice.length === 0 ? (
           <EmptyState title="No students match" description="Try adjusting your search or filters." action={<Button variant="outline" size="sm" onClick={reset}>Clear filters</Button>} />
+        ) : view === "grid" ? (
+          <CardGrid columns={4}>
+            {slice.map((s) => {
+              const st = getStudentStats(s.id);
+              return (
+                <RecordCard
+                  key={s.id}
+                  href={`/students/${s.id}`}
+                  title={s.name}
+                  subtitle={`${s.id} · Gen ${s.generation} · ${s.classroom}`}
+                  leading={
+                    <Avatar>
+                      <AvatarFallback className="bg-primary/10 text-primary">{initials(s.name)}</AvatarFallback>
+                    </Avatar>
+                  }
+                  trailing={<StudentStatusBadge status={s.status} />}
+                  footer={
+                    <>
+                      <span className="text-muted-foreground text-xs">
+                        Attendance <span className="text-foreground font-medium tabular-nums">{s.status === "active" ? `${st.attendanceRate}%` : "—"}</span>
+                      </span>
+                      <ScoreBadge score={st.averageScore} />
+                    </>
+                  }
+                >
+                  <CardFields>
+                    <CardField label="Course" className="col-span-2">{courseByCode(s.courseCode).name}</CardField>
+                    <CardField label="Email" className="col-span-2">{s.email}</CardField>
+                    <CardField label="Phone">{s.phone}</CardField>
+                    <CardField label="Gender">{s.gender}</CardField>
+                    <CardField label="University" className="col-span-2">{s.university}</CardField>
+                    <CardField label="Enrolled">{formatDate(s.enrollmentDate)}</CardField>
+                  </CardFields>
+                </RecordCard>
+              );
+            })}
+          </CardGrid>
         ) : (
           <Table>
             <TableHeader>

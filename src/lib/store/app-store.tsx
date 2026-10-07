@@ -12,6 +12,7 @@ import type {
   ChatSession,
   CodingChallenge,
   ExtraClassRecord,
+  OvertimeReport,
   FeedbackEntry,
   FileNode,
   FilePermission,
@@ -25,17 +26,9 @@ import { INITIAL_SESSIONS, MAX_SESSIONS } from "@/lib/data/chat";
 import { AGENTS } from "@/lib/data/agents";
 import { ALLOWANCE_TYPES, CODING_CHALLENGE } from "@/lib/data/allowances";
 import { EXTRA_CLASSES } from "@/lib/data/academics";
+import { INSTRUCTOR_EXTRA_RATE, OVERTIME_REPORTS } from "@/lib/data/overtime";
 
-export interface OvertimeReport {
-  id: string;
-  instructorId: string;
-  date: string;
-  classroom: string;
-  hours: number;
-  subject: string;
-  notes?: string;
-  status: "submitted" | "approved";
-}
+export type { OvertimeReport };
 
 interface AppStoreValue {
   feedback: FeedbackEntry[];
@@ -88,6 +81,10 @@ interface AppStoreValue {
 
   overtimeReports: OvertimeReport[];
   addOvertimeReport: (r: Omit<OvertimeReport, "id" | "status">) => void;
+  setOvertimeStatus: (id: string, status: OvertimeReport["status"]) => void;
+  /** USD per approved instructor extra-class hour. */
+  instructorExtraRate: number;
+  setInstructorExtraRate: (rate: number) => void;
 }
 
 const AppStoreContext = React.createContext<AppStoreValue | null>(null);
@@ -108,11 +105,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const [allowanceTypes, setAllowanceTypes] = React.useState<AllowanceType[]>(ALLOWANCE_TYPES);
   const [challenge, setChallenge] = React.useState<CodingChallenge>(CODING_CHALLENGE);
   const [extraClasses, setExtraClasses] = React.useState<ExtraClassRecord[]>(EXTRA_CLASSES);
-  const [overtimeReports, setOvertimeReports] = React.useState<OvertimeReport[]>([
-    { id: "OT-1", instructorId: "USR-INS-01", date: "2026-09-25", classroom: "SP13-A", hours: 2, subject: "Spring Cloud", notes: "Config server lab", status: "approved" },
-    { id: "OT-2", instructorId: "USR-INS-01", date: "2026-10-02", classroom: "SP13-B", hours: 2.5, subject: "Spring Boot", status: "submitted" },
-    { id: "OT-3", instructorId: "USR-INS-02", date: "2026-09-29", classroom: "DA13", hours: 2, subject: "Statistics", status: "approved" },
-  ]);
+  const [overtimeReports, setOvertimeReports] = React.useState<OvertimeReport[]>(OVERTIME_REPORTS);
+  const [instructorExtraRate, setInstructorExtraRateState] = React.useState(INSTRUCTOR_EXTRA_RATE);
 
   /* ---------------- feedback ---------------- */
   const addFeedback = React.useCallback<AppStoreValue["addFeedback"]>((entry) => {
@@ -332,6 +326,12 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const addOvertimeReport = React.useCallback<AppStoreValue["addOvertimeReport"]>((r) => {
     setOvertimeReports((prev) => [{ id: nextId("OT"), status: "submitted", ...r }, ...prev]);
   }, []);
+  const setOvertimeStatus = React.useCallback<AppStoreValue["setOvertimeStatus"]>((id, status) => {
+    setOvertimeReports((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)));
+  }, []);
+  const setInstructorExtraRate = React.useCallback<AppStoreValue["setInstructorExtraRate"]>((rate) => {
+    setInstructorExtraRateState(Math.max(0, rate));
+  }, []);
 
   const value = React.useMemo<AppStoreValue>(
     () => ({
@@ -376,6 +376,9 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       setExtraClassStatus,
       overtimeReports,
       addOvertimeReport,
+      setOvertimeStatus,
+      instructorExtraRate,
+      setInstructorExtraRate,
     }),
     [
       feedback, addFeedback, updateFeedback, removeFeedback,
@@ -387,7 +390,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       allowanceTypes, updateAllowanceType,
       challenge, updateChallenge,
       extraClasses, setExtraClassStatus,
-      overtimeReports, addOvertimeReport,
+      overtimeReports, addOvertimeReport, setOvertimeStatus, instructorExtraRate, setInstructorExtraRate,
     ]
   );
 

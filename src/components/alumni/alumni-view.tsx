@@ -27,7 +27,8 @@ import { COURSES, courseByCode } from "@/lib/data/users";
 import { ALUMNI_GENERATIONS, EMPLOYED_STATUSES, EMPLOYMENT_STATUSES, INDUSTRIES, SALARY_RANGES } from "@/lib/data/alumni";
 import { initials } from "@/lib/data/students";
 import { formatDate } from "@/lib/utils/format";
-import { exportCsv } from "@/lib/utils/export";
+import { ExportPreviewDialog, type ExportSpec } from "@/components/shared/export-preview-dialog";
+import { CardField, CardFields, CardGrid, RecordCard, ViewToggle, useViewMode } from "@/components/shared/view-toggle";
 import type { AlumniValues } from "@/lib/validation/schemas";
 import { AlumniFormDialog } from "./alumni-form-dialog";
 
@@ -81,9 +82,21 @@ export function AlumniView() {
     toast({ title: "Alumni profile created", description: `${created.name} was added to the alumni directory.`, variant: "success" });
   };
 
-  const exportRows = () =>
-    exportCsv("alumni", ["ID", "Name", "Email", "Phone", "Generation", "Course", "Education", "University", "Employment", "Industry", "Salary range", "Company", "Job title", "Last updated"],
-      filtered.map((a) => { const j = a.jobs[a.jobs.length - 1]; return [a.id, a.name, a.email, a.phone, a.generation, courseByCode(a.courseCode).name, a.education, a.university, a.employmentStatus, a.industry, a.salaryRange, j?.company ?? "", j?.title ?? "", a.lastUpdated]; }));
+  const [exportOpen, setExportOpen] = React.useState(false);
+  const [view, setView] = useViewMode("alumni");
+  const buildExport = (): ExportSpec => ({
+    filename: "alumni",
+    columns: ["ID", "Name", "Email", "Phone", "Generation", "Course", "Education", "University", "Employment", "Industry", "Salary range", "Company", "Job title", "Last updated"],
+    rows: filtered.map((a) => {
+      const j = a.jobs[a.jobs.length - 1];
+      return [a.id, a.name, a.email, a.phone, a.generation, courseByCode(a.courseCode).name, a.education, a.university, a.employmentStatus, a.industry, a.salaryRange, j?.company ?? "", j?.title ?? "", a.lastUpdated];
+    }),
+    summary: [
+      { label: "Alumni", value: filtered.length },
+      { label: "SW developers", value: filtered.filter((a) => a.employmentStatus.endsWith("SW Developer")).length },
+      { label: "Generations", value: new Set(filtered.map((a) => a.generation)).size },
+    ],
+  });
 
   return (
     <div className="space-y-6">
@@ -92,7 +105,8 @@ export function AlumniView() {
         description="Profiles, employment tracking and profile update requests for HRD graduates."
         actions={
           <>
-            <Button variant="outline" onClick={exportRows}><ArrowDownTrayIcon /> Export CSV</Button>
+            <Button variant="outline" onClick={() => setExportOpen(true)}><ArrowDownTrayIcon /> Export CSV</Button>
+            <ExportPreviewDialog open={exportOpen} onOpenChange={setExportOpen} build={buildExport} title="Export alumni" />
             <Button onClick={() => setFormOpen(true)}><PlusIcon /> Add alumni</Button>
           </>
         }
@@ -147,11 +161,49 @@ export function AlumniView() {
                     <SelectTrigger size="sm" className="bg-card w-32"><SelectValue /></SelectTrigger>
                     <SelectContent><SelectItem value="all">All degrees</SelectItem>{["Bachelor", "Master", "PhD"].map((e) => <SelectItem key={e} value={e}>{e}</SelectItem>)}</SelectContent>
                   </Select>
+                  <ViewToggle value={view} onChange={setView} className="ml-auto" />
                 </div>
               </div>
             </div>
             {slice.length === 0 ? (
               <EmptyState title="No alumni match" description="Adjust your search or filters." />
+            ) : view === "grid" ? (
+              <CardGrid>
+                {slice.map((a) => {
+                  const job = a.jobs[a.jobs.length - 1];
+                  return (
+                    <RecordCard
+                      key={a.id}
+                      href={`/alumni/${a.id}`}
+                      title={a.name}
+                      subtitle={a.email}
+                      leading={<Avatar><AvatarFallback className="bg-chart-2/20">{initials(a.name)}</AvatarFallback></Avatar>}
+                      trailing={<EmploymentBadge status={a.employmentStatus} />}
+                      footer={
+                        <>
+                          <span className="text-muted-foreground text-xs">Updated {formatDate(a.lastUpdated)}</span>
+                          {a.updateRequest?.status === "pending" ? (
+                            <Badge variant="warning">Pending · {a.updateRequest.sentBy === "ai" ? "AI" : "Admin"}</Badge>
+                          ) : (
+                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { sendUpdateRequest(a.id, "admin"); toast({ title: "Update request sent", description: `Form link emailed to ${a.email}.`, variant: "success" }); }}>
+                              <EnvelopeIcon /> Send form
+                            </Button>
+                          )}
+                        </>
+                      }
+                    >
+                      <CardFields>
+                        <CardField label="Gen / Course" className="col-span-2">Gen {a.generation} · {courseByCode(a.courseCode).name}</CardField>
+                        <CardField label="Current role" className="col-span-2">{job ? `${job.title} · ${job.company}` : "—"}</CardField>
+                        <CardField label="Industry">{a.industry}</CardField>
+                        <CardField label="Salary">{a.salaryRange}</CardField>
+                        <CardField label="Education">{a.education}</CardField>
+                        <CardField label="University">{a.university}</CardField>
+                      </CardFields>
+                    </RecordCard>
+                  );
+                })}
+              </CardGrid>
             ) : (
               <Table>
                 <TableHeader>

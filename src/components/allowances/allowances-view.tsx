@@ -16,14 +16,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useAppStore } from "@/lib/store/app-store";
 import { useToast } from "@/hooks/use-toast";
 import { STUDENTS, CLASSROOMS } from "@/lib/data/students";
 import { ALLOWANCE_MONTHS, allowanceColumns, challengeAppliesTo, computeMonthlyAllowance } from "@/lib/data/allowances";
 import { CodingChallengePanel } from "./coding-challenge-panel";
-import { formatCurrency, formatMonth } from "@/lib/utils/format";
-import { exportCsv, exportExcel } from "@/lib/utils/export";
+import { formatCurrency, formatDate, formatMonth } from "@/lib/utils/format";
+import { ExportPreviewDialog, type ExportSpec } from "@/components/shared/export-preview-dialog";
+import { CardField, CardFields, CardGrid, RecordCard, ViewToggle, useViewMode } from "@/components/shared/view-toggle";
+import { TODAY } from "@/lib/data/seed";
 import type { AllowanceRange, AllowanceType } from "@/lib/data/types";
 
 const BASIS_LABEL: Record<AllowanceType["basis"], string> = {
@@ -43,6 +44,8 @@ export function AllowancesView() {
   const [query, setQuery] = React.useState("");
   const [editing, setEditing] = React.useState<AllowanceType | null>(null);
   const [draft, setDraft] = React.useState<{ amount: string; ranges: { min: string; amount: string }[] }>({ amount: "0", ranges: [] });
+  const [exportOpen, setExportOpen] = React.useState(false);
+  const [view, setView] = useViewMode("allowances");
 
   const activeClassrooms = CLASSROOMS.filter((c) => c.includes("13"));
   const enabledTypes = allowanceTypes.filter((t) => t.enabled);
@@ -64,6 +67,45 @@ export function AllowancesView() {
   const exportColumns = ["Student ID", "Name", "Class", "Attendance %", "Extra hours", ...columns.map((t) => t.name), "Total (USD)"];
   const exportRows = () => rows.map((r) => [r.student.id, r.student.name, r.student.classroom, r.allowance.attendanceRate, r.allowance.extraHours, ...r.allowance.lines.map((l) => l.amount), r.allowance.total]);
 
+  const buildExport = (): ExportSpec => {
+    const money = (n: number) => (n ? formatCurrency(Math.round(n * 100) / 100) : "—");
+    return {
+      filename: `allowances_${month}`,
+      columns: exportColumns,
+      rows: exportRows(),
+      numericFrom: 3,
+      formats: ["csv", "excel", "pdf"],
+      sheetName: formatMonth(month),
+      summary: [
+        { label: "Total payout", value: formatCurrency(Math.round(grandTotal)) },
+        { label: "Average per student", value: formatCurrency(Math.round(avg)) },
+        { label: "Largest component", value: largest?.t.name ?? "—" },
+        { label: "Allowance types", value: `${enabledTypes.length} / ${allowanceTypes.length} enabled` },
+      ],
+      pdf: {
+        title: `Monthly allowances · ${formatMonth(month)}`,
+        subtitle: [
+          `${classroom === "all" ? "All classes" : `Class ${classroom}`} · ${rows.length} active students${query.trim() ? ` · filtered by “${query.trim()}”` : ""}`,
+          `Generated ${formatDate(TODAY)} · amounts in USD`,
+        ],
+        columns: ["Student ID", "Name", "Class", "Att. %", "Extra hrs", ...columns.map((t) => t.name.replace(" allowance", "")), "Total"],
+        rows: rows.map((r) => [
+          r.student.id,
+          r.student.name + (r.student.isClassLeader ? " (Leader)" : ""),
+          r.student.classroom,
+          `${r.allowance.attendanceRate}%`,
+          r.allowance.extraHours,
+          ...r.allowance.lines.map((l) => money(l.amount)),
+          formatCurrency(r.allowance.total),
+        ]),
+        footer: ["", `Total (${rows.length} students)`, "", "", "", ...byType.map((b) => formatCurrency(Math.round(b.total))), formatCurrency(Math.round(grandTotal))],
+        note: challengeActive
+          ? `${challenge.name} prizes are included in this month under “Coding challenge reward”. Rates are managed in the Allowances module.`
+          : "Rates are managed in the Allowances module. Totals are calculated automatically from attendance, scores and approved extra-class hours.",
+      },
+    };
+  };
+
   const openEdit = (t: AllowanceType) => {
     setEditing(t);
     setDraft({ amount: String(t.amount), ranges: (t.ranges ?? []).map((r) => ({ min: String(r.min), amount: String(r.amount) })) });
@@ -84,15 +126,10 @@ export function AllowancesView() {
         title="Monthly allowance management"
         description="Manage allowance types, score-based ranges and rates. Each student's total is calculated automatically every month."
         actions={
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline"><ArrowDownTrayIcon /> Export report</Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={() => exportCsv(`allowances_${month}`, exportColumns, exportRows())}>Download CSV</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => exportExcel(`allowances_${month}`, exportColumns, exportRows(), formatMonth(month))}>Download Excel</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <>
+            <Button variant="outline" onClick={() => setExportOpen(true)}><ArrowDownTrayIcon /> Export report</Button>
+            <ExportPreviewDialog open={exportOpen} onOpenChange={setExportOpen} build={buildExport} title="Export monthly allowances" />
+          </>
         }
       />
 
@@ -131,6 +168,7 @@ export function AllowancesView() {
                     {activeClassrooms.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                <ViewToggle value={view} onChange={setView} />
               </div>
             </div>
             {challengeActive && (
@@ -138,6 +176,42 @@ export function AllowancesView() {
                 <TrophyIcon className="size-4" /> {challenge.name} prizes are included in this month. Winning teams are highlighted in the “Coding challenge reward” column.
               </p>
             )}
+            {view === "grid" ? (
+              <>
+                <CardGrid>
+                  {rows.map((r) => (
+                    <RecordCard
+                      key={r.student.id}
+                      href={`/students/${r.student.id}`}
+                      title={r.student.name}
+                      subtitle={`${r.student.classroom} · attendance ${r.allowance.attendanceRate}%`}
+                      trailing={r.student.isClassLeader ? <Badge variant="secondary">Leader</Badge> : undefined}
+                      footer={
+                        <>
+                          <span className="text-muted-foreground text-xs">Total · {formatMonth(month)}</span>
+                          <span className="font-semibold tabular-nums">{formatCurrency(r.allowance.total)}</span>
+                        </>
+                      }
+                    >
+                      <CardFields>
+                        {r.allowance.lines.map((l) => {
+                          const t = columns.find((c) => c.id === l.typeId);
+                          return (
+                            <CardField key={l.typeId} label={(t?.name ?? l.typeId).replace(" allowance", "")}>
+                              <span title={l.note}>{l.amount ? formatCurrency(l.amount) : <span className="text-muted-foreground">—</span>}</span>
+                            </CardField>
+                          );
+                        })}
+                      </CardFields>
+                    </RecordCard>
+                  ))}
+                </CardGrid>
+                <div className="bg-muted/40 flex items-center justify-between border-t px-4 py-3 text-sm font-semibold">
+                  <span>Total ({rows.length} students)</span>
+                  <span className="tabular-nums">{formatCurrency(Math.round(grandTotal))}</span>
+                </div>
+              </>
+            ) : (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -170,6 +244,7 @@ export function AllowancesView() {
                 </TableRow>
               </TableBody>
             </Table>
+            )}
           </div>
         </TabsContent>
 

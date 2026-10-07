@@ -12,6 +12,10 @@ import {
   ClipboardDocumentCheckIcon,
   LanguageIcon,
   ComputerDesktopIcon,
+  ChatBubbleBottomCenterTextIcon,
+  LockClosedIcon,
+  PencilSquareIcon,
+  TrashIcon,
 } from "@heroicons/react/24/outline";
 
 import { KpiCard } from "@/components/shared/kpi-card";
@@ -21,22 +25,31 @@ import { ChartCard, DonutChart, SimpleLineChart } from "@/components/charts/char
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { FeedbackFormDialog } from "@/components/feedback/feedback-form-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/lib/auth/auth-context";
 import { useAppStore } from "@/lib/store/app-store";
+import { useToast } from "@/hooks/use-toast";
 import { studentById, initials } from "@/lib/data/students";
 import { courseByCode, userById } from "@/lib/data/users";
 import { ATTENDANCE, MONTHLY_SCORES, SCORES, assessRisk, getStudentStats, scoreAverage, scoreTotal } from "@/lib/data/academics";
 import { ALLOWANCE_MONTHS, allowanceColumns, computeMonthlyAllowance } from "@/lib/data/allowances";
 import { summarizeFeedback } from "@/lib/data/feedback";
 import { formatDate, formatMonth, formatCurrency, ageFromDob, weekdayOf } from "@/lib/utils/format";
+import type { FeedbackEntry } from "@/lib/data/types";
+import type { FeedbackValues } from "@/lib/validation/schemas";
 
 export function StudentDetailView({ id }: { id: string }) {
-  const { isAdmin } = useAuth();
-  const { feedback, allowanceTypes, extraClasses, challenge } = useAppStore();
+  const { user, isAdmin } = useAuth();
+  const { feedback, addFeedback, updateFeedback, removeFeedback, allowanceTypes, extraClasses, challenge } = useAppStore();
+  const { toast } = useToast();
   const student = studentById(id);
+  const [feedbackOpen, setFeedbackOpen] = React.useState(false);
+  const [editing, setEditing] = React.useState<FeedbackEntry | null>(null);
+  const [deleting, setDeleting] = React.useState<FeedbackEntry | null>(null);
 
   if (!student) {
     return (
@@ -60,6 +73,24 @@ export function StudentDetailView({ id }: { id: string }) {
   const monthly = MONTHLY_SCORES.filter((m) => m.studentId === student.id).map((m) => ({ month: formatMonth(m.month).slice(0, 3), average: m.average }));
   const attendance = ATTENDANCE.filter((a) => a.studentId === student.id).sort((a, b) => (a.date < b.date ? 1 : -1));
   const studentFeedback = feedback.filter((f) => f.studentId === student.id);
+  // Instructors give feedback only about active students on their own course (same rule as the Feedback module).
+  const canGiveFeedback = !isAdmin && !!user && student.status === "active" && (!user.course || user.course === student.courseCode);
+
+  const openNewFeedback = () => {
+    setEditing(null);
+    setFeedbackOpen(true);
+  };
+  const submitFeedback = (values: FeedbackValues) => {
+    if (editing) {
+      updateFeedback(editing.id, values);
+      toast({ title: "Feedback updated", variant: "success" });
+    } else {
+      addFeedback({ ...values, studentId: student.id, instructorId: user?.id ?? "USR-INS-01" });
+      toast({ title: "Feedback submitted", description: `Private note about ${student.name} saved.`, variant: "success" });
+    }
+    setFeedbackOpen(false);
+    setEditing(null);
+  };
   const studentExtra = extraClasses.filter((e) => e.studentId === student.id);
   // Columns are the enabled allowance types plus the one-off coding challenge reward (in its payout month).
   const allowanceCols = allowanceColumns(allowanceTypes, challenge.payoutMonth, challenge);
@@ -103,6 +134,11 @@ export function StudentDetailView({ id }: { id: string }) {
             <p><span className="text-muted-foreground">Instructor:</span> {instructor?.name}</p>
           </div>
         </div>
+        {canGiveFeedback && (
+          <Button onClick={openNewFeedback} className="md:self-start">
+            <ChatBubbleBottomCenterTextIcon /> Give feedback
+          </Button>
+        )}
       </div>
 
       {risk && (
@@ -236,19 +272,56 @@ export function StudentDetailView({ id }: { id: string }) {
             <CardContent className="text-sm leading-relaxed">{summarizeFeedback(studentFeedback, student.name)}</CardContent>
           </Card>
           <Card className="py-0">
+            {canGiveFeedback && studentFeedback.length > 0 && (
+              <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
+                <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+                  <LockClosedIcon className="size-3.5" /> {studentFeedback.length} private {studentFeedback.length === 1 ? "note" : "notes"} · visible to HRD staff only
+                </p>
+                <Button size="sm" variant="outline" onClick={openNewFeedback}>
+                  <ChatBubbleBottomCenterTextIcon /> New feedback
+                </Button>
+              </div>
+            )}
             {studentFeedback.length === 0 ? (
-              <EmptyState title="No feedback yet" description="Instructors have not submitted private feedback for this student." />
+              <EmptyState
+                title="No feedback yet"
+                description={canGiveFeedback ? `Be the first to leave a private note about ${student.name}.` : "Instructors have not submitted private feedback for this student."}
+                action={
+                  canGiveFeedback ? (
+                    <Button onClick={openNewFeedback}>
+                      <ChatBubbleBottomCenterTextIcon /> Give feedback
+                    </Button>
+                  ) : undefined
+                }
+              />
             ) : (
               <ul className="divide-y">
-                {studentFeedback.map((f) => (
-                  <li key={f.id} className="p-4">
-                    <div className="mb-1 flex items-center justify-between gap-2">
-                      <Badge variant="secondary">{f.category}</Badge>
-                      <span className="text-muted-foreground text-xs">{formatDate(f.date)} · {userById(f.instructorId)?.name}</span>
-                    </div>
-                    <p className="text-sm">{f.content}</p>
-                  </li>
-                ))}
+                {studentFeedback.map((f) => {
+                  const mine = f.instructorId === user?.id;
+                  return (
+                    <li key={f.id} className="flex gap-3 p-4">
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-1 flex flex-wrap items-center gap-2">
+                          <Badge variant="secondary">{f.category}</Badge>
+                          <span className="text-muted-foreground text-xs">
+                            {formatDate(f.date)} · {mine ? "You" : userById(f.instructorId)?.name}
+                          </span>
+                        </div>
+                        <p className="text-sm">{f.content}</p>
+                      </div>
+                      {mine && !isAdmin && (
+                        <div className="flex shrink-0 items-start gap-1">
+                          <Button variant="ghost" size="icon-sm" aria-label="Edit feedback" onClick={() => { setEditing(f); setFeedbackOpen(true); }}>
+                            <PencilSquareIcon />
+                          </Button>
+                          <Button variant="ghost" size="icon-sm" aria-label="Delete feedback" className="text-destructive" onClick={() => setDeleting(f)}>
+                            <TrashIcon />
+                          </Button>
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </Card>
@@ -292,6 +365,37 @@ export function StudentDetailView({ id }: { id: string }) {
           </TabsContent>
         )}
       </Tabs>
+
+      <FeedbackFormDialog
+        open={feedbackOpen}
+        onOpenChange={(o) => { setFeedbackOpen(o); if (!o) setEditing(null); }}
+        initial={editing}
+        studentId={student.id}
+        onSubmit={submitFeedback}
+        instructorCourse={user?.course}
+      />
+
+      <Dialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete feedback?</DialogTitle>
+            <DialogDescription>This removes your note about {student.name}. This cannot be undone.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleting(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (deleting) removeFeedback(deleting.id);
+                setDeleting(null);
+                toast({ title: "Feedback deleted" });
+              }}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
