@@ -17,7 +17,6 @@ import {
 } from "@heroicons/react/24/outline";
 
 import { PageHeader } from "@/components/shared/page-header";
-import { KpiCard } from "@/components/shared/kpi-card";
 import { RiskBadge } from "@/components/shared/status-badge";
 import { ChartCard, DonutChart, SimpleBarChart, SimpleLineChart } from "@/components/charts/charts";
 import { AlumniAchievementChart } from "@/components/charts/alumni-achievement-chart";
@@ -36,8 +35,11 @@ import { ATTENDANCE, RISK_ASSESSMENTS, attendanceSeries, getStudentStats } from 
 import { formatDate } from "@/lib/utils/format";
 import { TODAY } from "@/lib/data/seed";
 import { ReportExportDialog } from "./report-export-dialog";
+import { FeaturedStatTile, StatTile } from "./dashboard-widgets";
 
 type Granularity = "daily" | "weekly" | "monthly";
+
+const pct = (part: number, whole: number) => (whole ? Math.round((part / whole) * 100) : 0);
 
 export function DashboardView() {
   const { user, isAdmin } = useAuth();
@@ -144,12 +146,54 @@ export function DashboardView() {
       />
 
       {/* KPI row */}
-      <div className={`grid gap-4 sm:grid-cols-2 ${isAdmin ? "xl:grid-cols-5" : "xl:grid-cols-4"}`}>
-        <KpiCard label="Total students" value={counts.total} hint={generation === "all" ? "across 3 generations" : `generation ${generation}`} icon={<UsersIcon />} tone="primary" />
-        <KpiCard label="Active" value={counts.active} hint={`${counts.total ? Math.round((counts.active / counts.total) * 100) : 0}% of total`} icon={<AcademicCapIcon />} tone="success" />
-        <KpiCard label="Dropped" value={counts.dropped} hint="require exit review" icon={<UserMinusIcon />} tone="danger" />
-        <KpiCard label="Graduated" value={counts.graduated} hint="completed the programme" icon={<UserGroupIcon />} tone="default" />
-        {isAdmin && <KpiCard label="Total alumni" value={alumni.length} hint={`${employedCount} employed`} icon={<BriefcaseIcon />} tone="warning" />}
+      <div className={cn("grid grid-cols-2 gap-3 sm:gap-4", isAdmin ? "lg:grid-cols-3 xl:grid-cols-5" : "xl:grid-cols-4")}>
+        <div className={cn("grid", isAdmin && "col-span-2 lg:col-span-1")}>
+          <FeaturedStatTile
+            label="Total students"
+            value={counts.total}
+            hint={generation === "all" ? "Across 3 generations" : `Generation ${generation}`}
+            icon={<UsersIcon />}
+            segments={[
+              { label: "Active", value: counts.active, color: "oklch(0.85 0.15 160)" },
+              { label: "Graduated", value: counts.graduated, color: "oklch(0.88 0.1 210)" },
+              { label: "Dropped", value: counts.dropped, color: "oklch(0.78 0.16 20)" },
+            ]}
+          />
+        </div>
+        <StatTile
+          label="Active"
+          value={counts.active}
+          hint={`${pct(counts.active, counts.total)}% of total`}
+          icon={<AcademicCapIcon />}
+          tone="success"
+          share={pct(counts.active, counts.total)}
+        />
+        <StatTile
+          label="Dropped"
+          value={counts.dropped}
+          hint="Require exit review"
+          icon={<UserMinusIcon />}
+          tone="danger"
+          share={pct(counts.dropped, counts.total)}
+        />
+        <StatTile
+          label="Graduated"
+          value={counts.graduated}
+          hint="Completed the programme"
+          icon={<UserGroupIcon />}
+          tone="info"
+          share={pct(counts.graduated, counts.total)}
+        />
+        {isAdmin && (
+          <StatTile
+            label="Total alumni"
+            value={alumni.length}
+            hint={`${employedCount} employed`}
+            icon={<BriefcaseIcon />}
+            tone="warning"
+            share={pct(employedCount, alumni.length)}
+          />
+        )}
       </div>
 
       {/* Student & attendance analytics */}
@@ -188,7 +232,7 @@ export function DashboardView() {
 
       {/* At risk + admin-only */}
       <div className={`grid gap-4 ${isAdmin ? "xl:grid-cols-[1.5fr_1fr]" : ""}`}>
-        <div className="bg-card rounded-xl border shadow-sm">
+        <div className="bg-card rounded-xl shadow-sm">
           <div className="flex items-center justify-between px-5 pt-5 pb-3">
             <div>
               <h3 className="flex items-center gap-2 font-semibold">
@@ -377,7 +421,7 @@ function RankedCard({
 }) {
   const max = rows.reduce((m, r) => Math.max(m, r.value), 0) || 1;
   return (
-    <div className="bg-card relative overflow-hidden rounded-xl border shadow-sm">
+    <div className="bg-card relative overflow-hidden rounded-xl shadow-sm">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-1" style={{ background: `linear-gradient(90deg, ${accent}, transparent)` }} />
       <div className="flex items-center justify-between gap-3 px-5 pt-5 pb-3">
         <div className="flex items-center gap-3">
