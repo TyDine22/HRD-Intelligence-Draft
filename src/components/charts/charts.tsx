@@ -408,7 +408,7 @@ export function ChartCard({
   className?: string;
 }) {
   return (
-    <div className={cn("bg-card flex flex-col rounded-xl border shadow-sm", className)}>
+    <div className={cn("bg-card flex flex-col rounded-xl shadow-sm", className)}>
       <div className="flex items-start justify-between gap-3 px-5 pt-5">
         <div>
           <h3 className="font-semibold">{title}</h3>
