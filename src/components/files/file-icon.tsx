@@ -10,17 +10,17 @@ import {
 import { cn } from "@/lib/utils";
 
 const STYLES: Record<string, { icon: typeof DocumentIcon; className: string }> = {
-  folder: { icon: FolderIcon, className: "text-[oklch(0.75_0.15_80)]" },
-  pdf: { icon: DocumentTextIcon, className: "text-[oklch(0.6_0.2_25)]" },
-  docx: { icon: DocumentTextIcon, className: "text-[oklch(0.55_0.17_262)]" },
+  folder: { icon: FolderIcon, className: "text-[#f5a300]" },
+  pdf: { icon: DocumentTextIcon, className: "text-[#c4001e]" },
+  docx: { icon: DocumentTextIcon, className: "text-[#1c67a7]" },
   txt: { icon: DocumentIcon, className: "text-muted-foreground" },
   md: { icon: DocumentIcon, className: "text-muted-foreground" },
-  xlsx: { icon: TableCellsIcon, className: "text-[oklch(0.55_0.15_155)]" },
-  csv: { icon: TableCellsIcon, className: "text-[oklch(0.55_0.15_155)]" },
-  pptx: { icon: PresentationChartBarIcon, className: "text-[oklch(0.65_0.19_45)]" },
-  png: { icon: PhotoIcon, className: "text-[oklch(0.62_0.18_310)]" },
-  jpeg: { icon: PhotoIcon, className: "text-[oklch(0.62_0.18_310)]" },
-  jpg: { icon: PhotoIcon, className: "text-[oklch(0.62_0.18_310)]" },
+  xlsx: { icon: TableCellsIcon, className: "text-[#15803d]" },
+  csv: { icon: TableCellsIcon, className: "text-[#15803d]" },
+  pptx: { icon: PresentationChartBarIcon, className: "text-[#ed1c2e]" },
+  png: { icon: PhotoIcon, className: "text-[#3980c2]" },
+  jpeg: { icon: PhotoIcon, className: "text-[#3980c2]" },
+  jpg: { icon: PhotoIcon, className: "text-[#3980c2]" },
 };
 
 export function FileIcon({ kind, ext, className }: { kind: "folder" | "file"; ext?: string; className?: string }) {

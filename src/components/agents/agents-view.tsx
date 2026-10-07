@@ -23,7 +23,7 @@ function AgentCard({ agent, onToggle, onRun }: { agent: Agent; onToggle: (v: boo
     <div className={cn("bg-card flex flex-col rounded-xl border p-5 shadow-sm", !agent.enabled && "opacity-70")}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className={cn("flex size-10 items-center justify-center rounded-lg", agent.kind === "scheduled" ? "bg-primary/10 text-primary" : "bg-warning/25 text-[oklch(0.45_0.12_70)] dark:text-[oklch(0.88_0.14_80)]")}>
+          <div className={cn("flex size-10 items-center justify-center rounded-lg", agent.kind === "scheduled" ? "bg-primary/10 text-primary" : "bg-warning-bg text-warning-text")}>
             {agent.kind === "scheduled" ? <CalendarDaysIcon className="size-5" /> : <BoltIcon className="size-5" />}
           </div>
           <div>

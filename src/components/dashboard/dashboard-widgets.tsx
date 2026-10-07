@@ -24,7 +24,7 @@ import { colorFor } from "@/components/charts/palette";
 /* ------------------------------------------------------------------ */
 
 export const surface =
-  "bg-card text-card-foreground rounded-2xl shadow-[0_1px_2px_rgba(16,24,40,0.04),0_8px_24px_-12px_rgba(16,24,40,0.10)] dark:shadow-none";
+  "bg-card text-card-foreground rounded-2xl shadow-[0_1px_2px_rgba(18,25,32,0.04),0_8px_24px_-12px_rgba(18,25,32,0.10)] dark:shadow-none";
 
 export function Panel({
   title,
@@ -79,27 +79,27 @@ type Tone = "primary" | "success" | "danger" | "info" | "warning";
 const toneStyles: Record<Tone, { color: string; icon: string; glow: string }> = {
   primary: {
     color: "var(--primary)",
-    icon: "bg-[linear-gradient(135deg,oklch(0.6_0.17_268),oklch(0.46_0.17_268))] shadow-[0_8px_18px_-6px_oklch(0.46_0.17_268/0.55)]",
+    icon: "bg-[linear-gradient(135deg,#3980c2,#03528d)] shadow-[0_8px_18px_-6px_rgba(3,82,141,0.55)]",
     glow: "bg-primary/15",
   },
   success: {
     color: "var(--success)",
-    icon: "bg-[linear-gradient(135deg,oklch(0.74_0.15_160),oklch(0.6_0.15_155))] shadow-[0_8px_18px_-6px_oklch(0.6_0.15_155/0.55)]",
+    icon: "bg-[linear-gradient(135deg,#2ea65a,#15803d)] shadow-[0_8px_18px_-6px_rgba(21,128,61,0.55)]",
     glow: "bg-success/20",
   },
   info: {
     color: "var(--info)",
-    icon: "bg-[linear-gradient(135deg,oklch(0.76_0.12_210),oklch(0.62_0.13_225))] shadow-[0_8px_18px_-6px_oklch(0.62_0.13_225/0.55)]",
+    icon: "bg-[linear-gradient(135deg,#5b9ad7,#1c67a7)] shadow-[0_8px_18px_-6px_rgba(28,103,167,0.55)]",
     glow: "bg-info/20",
   },
   danger: {
     color: "var(--destructive)",
-    icon: "bg-[linear-gradient(135deg,oklch(0.7_0.18_20),oklch(0.58_0.21_25))] shadow-[0_8px_18px_-6px_oklch(0.58_0.21_25/0.55)]",
+    icon: "bg-[linear-gradient(135deg,#ff5754,#ed1c2e)] shadow-[0_8px_18px_-6px_rgba(237,28,46,0.55)]",
     glow: "bg-destructive/15",
   },
   warning: {
     color: "var(--warning)",
-    icon: "bg-[linear-gradient(135deg,oklch(0.84_0.15_85),oklch(0.72_0.16_65))] shadow-[0_8px_18px_-6px_oklch(0.72_0.16_65/0.55)]",
+    icon: "bg-[linear-gradient(135deg,#ffc24a,#f5a300)] shadow-[0_8px_18px_-6px_rgba(245,163,0,0.55)]",
     glow: "bg-warning/25",
   },
 };
@@ -153,7 +153,7 @@ export function StatTile({
     <div
       className={cn(
         surface,
-        "group relative isolate flex min-w-0 flex-col justify-between gap-5 overflow-hidden rounded-3xl p-5 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_2px_4px_rgba(16,24,40,0.04),0_18px_36px_-14px_rgba(16,24,40,0.18)]"
+        "group relative isolate flex min-w-0 flex-col justify-between gap-5 overflow-hidden rounded-3xl p-5 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_2px_4px_rgba(18,25,32,0.04),0_18px_36px_-14px_rgba(18,25,32,0.18)]"
       )}
     >
       <span aria-hidden className={cn("pointer-events-none absolute -top-16 -right-16 -z-10 size-44 rounded-full blur-3xl transition-transform duration-500 group-hover:scale-125", t.glow)} />
@@ -188,9 +188,9 @@ export function FeaturedStatTile({
 }) {
   const total = segments.reduce((a, s) => a + s.value, 0);
   return (
-    <div className="relative isolate flex min-w-0 flex-col justify-between gap-5 overflow-hidden rounded-3xl bg-[linear-gradient(140deg,oklch(0.55_0.18_268),oklch(0.42_0.17_282))] p-5 text-white shadow-[0_14px_32px_-14px_oklch(0.46_0.17_268/0.7)] transition-transform duration-300 hover:-translate-y-0.5">
+    <div className="relative isolate flex min-w-0 flex-col justify-between gap-5 overflow-hidden rounded-3xl bg-[linear-gradient(140deg,#1c67a7,#003c6b)] p-5 text-white shadow-[0_14px_32px_-14px_rgba(3,82,141,0.7)] transition-transform duration-300 hover:-translate-y-0.5">
       <span aria-hidden className="pointer-events-none absolute -top-12 -right-12 -z-10 size-40 rounded-full bg-white/15 blur-2xl" />
-      <span aria-hidden className="pointer-events-none absolute -bottom-16 -left-8 -z-10 size-36 rounded-full bg-[oklch(0.75_0.15_200/0.35)] blur-2xl" />
+      <span aria-hidden className="pointer-events-none absolute -bottom-16 -left-8 -z-10 size-36 rounded-full bg-[rgba(91,154,215,0.45)] blur-2xl" />
       <div className="flex items-center gap-3">
         <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-white/20 backdrop-blur [&>svg]:size-5">{icon}</span>
         <p className="text-sm leading-tight font-medium text-white/80">{label}</p>
@@ -270,7 +270,7 @@ const tooltipProps = {
     color: "var(--popover-foreground)",
     fontSize: 12,
     padding: "8px 12px",
-    boxShadow: "0 10px 30px -8px rgba(16,24,40,.18)",
+    boxShadow: "0 10px 30px -8px rgba(18,25,32,.18)",
   },
   labelStyle: { color: "var(--muted-foreground)", fontWeight: 600, marginBottom: 2 },
   itemStyle: { color: "var(--popover-foreground)", padding: 0 },

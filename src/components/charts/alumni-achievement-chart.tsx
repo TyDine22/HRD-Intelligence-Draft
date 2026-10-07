@@ -47,6 +47,7 @@ export function alumniAchievementStats(alumni: Alumni[]) {
 export function AlumniAchievementChart({ alumni, className }: { alumni: Alumni[]; className?: string }) {
   const { total, slices, avgSalary, genRange } = React.useMemo(() => alumniAchievementStats(alumni), [alumni]);
   const [active, setActive] = React.useState<EmploymentStatus | null>(null);
+  const activeSlice = active ? slices.find((s) => s.name === active) : undefined;
 
   if (total === 0) return <p className="text-muted-foreground py-16 text-center text-sm">No alumni on record.</p>;
 
@@ -54,10 +55,18 @@ export function AlumniAchievementChart({ alumni, className }: { alumni: Alumni[]
     <div className={cn("grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]", className)}>
       <div className="flex flex-col items-center">
         <div className="w-full max-w-[340px]">
-          <LabelledPieChart data={slices.map((s) => ({ ...s, color: active && active !== s.name ? `color-mix(in oklch, ${s.color} 45%, var(--card))` : s.color }))} height={300} />
+          <LabelledPieChart
+            data={slices.map((s) => ({ ...s, color: active && active !== s.name ? `color-mix(in srgb, ${s.color} 35%, var(--card))` : s.color }))}
+            height={300}
+            centerLabel={
+              activeSlice
+                ? { value: activeSlice.value, label: META[activeSlice.name as EmploymentStatus].short ?? activeSlice.name, color: activeSlice.color }
+                : { value: total, label: "alumni" }
+            }
+          />
         </div>
         <p className="text-muted-foreground mt-2 text-xs">
-          Generation {genRange} · <span className="text-foreground font-semibold">{total}</span> alumni
+          Generation {genRange}
         </p>
       </div>
 

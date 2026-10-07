@@ -17,9 +17,9 @@ interface KpiCardProps {
 const toneClasses: Record<NonNullable<KpiCardProps["tone"]>, string> = {
   default: "bg-muted text-foreground",
   primary: "bg-primary/10 text-primary",
-  success: "bg-success/15 text-[oklch(0.42_0.12_155)] dark:text-[oklch(0.8_0.14_155)]",
-  warning: "bg-warning/25 text-[oklch(0.45_0.12_70)] dark:text-[oklch(0.88_0.14_80)]",
-  danger: "bg-destructive/10 text-destructive",
+  success: "bg-success-bg text-success-text",
+  warning: "bg-warning-bg text-warning-text",
+  danger: "bg-error-bg text-error-text",
 };
 
 export function KpiCard({ label, value, hint, delta, deltaLabel, icon, tone = "default", className }: KpiCardProps) {
@@ -35,7 +35,7 @@ export function KpiCard({ label, value, hint, delta, deltaLabel, icon, tone = "d
               <span
                 className={cn(
                   "inline-flex items-center gap-0.5 font-medium",
-                  positive ? "text-[oklch(0.5_0.14_155)] dark:text-[oklch(0.8_0.14_155)]" : "text-destructive"
+                  positive ? "text-success-text" : "text-error-text"
                 )}
               >
                 {positive ? <ArrowTrendingUpIcon className="size-3.5" /> : <ArrowTrendingDownIcon className="size-3.5" />}

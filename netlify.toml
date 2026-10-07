@@ -1,14 +1,11 @@
-# Netlify configuration for the HRD Intelligence Next.js frontend.
-# Netlify's Next.js runtime (@netlify/plugin-nextjs) is auto-installed for Next.js sites,
-# so the App Router, dynamic routes and next.config redirects all work without extra setup.
+# Netlify configuration for the HRD Intelligence frontend (Next.js static export).
+# `next build` writes a fully static site to out/ (see next.config.ts), so no
+# Next.js runtime or serverless functions are required.
 
 [build]
   command = "npm run build"
-  publish = ".next"
+  publish = "out"
 
 [build.environment]
   NODE_VERSION = "22"
   NEXT_TELEMETRY_DISABLED = "1"
-
-[[plugins]]
-  package = "@netlify/plugin-nextjs"

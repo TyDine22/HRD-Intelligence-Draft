@@ -8,8 +8,8 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
     <div className="grid min-h-screen lg:grid-cols-[1.1fr_1fr]">
       <div className="bg-sidebar text-sidebar-foreground relative hidden overflow-hidden lg:flex lg:flex-col lg:justify-between lg:p-10">
         <div className="surface-grid pointer-events-none absolute inset-0 opacity-30" />
-        <div className="pointer-events-none absolute -top-32 -right-32 size-96 rounded-full bg-[oklch(0.62_0.17_268)] opacity-30 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-40 -left-20 size-96 rounded-full bg-[oklch(0.68_0.13_185)] opacity-25 blur-3xl" />
+        <div className="pointer-events-none absolute -top-32 -right-32 size-96 rounded-full bg-[#3980c2] opacity-35 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-40 -left-20 size-96 rounded-full bg-[#ed1c2e] opacity-20 blur-3xl" />
         <div className="relative">
           <BrandWordmark light />
         </div>

@@ -383,9 +383,9 @@ interface RankedRow {
 }
 
 const MEDALS = [
-  { ribbon: "oklch(0.55 0.2 25)", disc: "oklch(0.82 0.17 85)", rim: "oklch(0.68 0.16 75)", label: "Gold medal", glow: "oklch(0.82 0.17 85 / 0.18)" },
-  { ribbon: "oklch(0.52 0.16 262)", disc: "oklch(0.86 0.01 260)", rim: "oklch(0.68 0.015 260)", label: "Silver medal", glow: "oklch(0.86 0.01 260 / 0.22)" },
-  { ribbon: "oklch(0.48 0.12 160)", disc: "oklch(0.74 0.12 55)", rim: "oklch(0.58 0.11 50)", label: "Bronze medal", glow: "oklch(0.74 0.12 55 / 0.18)" },
+  { ribbon: "#c4001e", disc: "#f5a300", rim: "#9a5b00", label: "Gold medal", glow: "rgba(245, 163, 0, 0.18)" },
+  { ribbon: "#1c67a7", disc: "#cfd5db", rim: "#677079", label: "Silver medal", glow: "rgba(207, 213, 219, 0.35)" },
+  { ribbon: "#15803d", disc: "#d98e4a", rim: "#8a4b1c", label: "Bronze medal", glow: "rgba(217, 142, 74, 0.2)" },
 ];
 
 /** Original medal glyph (Heroicons has no medal), coloured per podium place. */
@@ -425,7 +425,7 @@ function RankedCard({
       <div className="pointer-events-none absolute inset-x-0 top-0 h-1" style={{ background: `linear-gradient(90deg, ${accent}, transparent)` }} />
       <div className="flex items-center justify-between gap-3 px-5 pt-5 pb-3">
         <div className="flex items-center gap-3">
-          <div className="flex size-9 items-center justify-center rounded-lg [&>svg]:size-5" style={{ background: `color-mix(in oklch, ${accent} 14%, transparent)`, color: accent }}>
+          <div className="flex size-9 items-center justify-center rounded-lg [&>svg]:size-5" style={{ background: `color-mix(in srgb, ${accent} 14%, transparent)`, color: accent }}>
             {icon}
           </div>
           <div>
@@ -448,7 +448,7 @@ function RankedCard({
                   href={`/students/${r.id}`}
                   className={cn(
                     "group flex items-center gap-3 rounded-lg px-2 py-2 transition-colors",
-                    i === 0 ? "bg-[oklch(0.97_0.03_85)] dark:bg-[oklch(0.3_0.04_85)]" : "hover:bg-accent/60"
+                    i === 0 ? "bg-warning-bg" : "hover:bg-accent/60"
                   )}
                 >
                   <span className="flex w-8 shrink-0 items-center justify-center">

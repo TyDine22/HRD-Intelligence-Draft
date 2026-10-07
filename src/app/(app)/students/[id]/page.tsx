@@ -5,6 +5,8 @@ import { STUDENTS } from "@/lib/data/students";
 
 export const metadata: Metadata = { title: "Student profile" };
 
+export const dynamicParams = false;
+
 export function generateStaticParams() {
   return STUDENTS.map((s) => ({ id: s.id }));
 }
