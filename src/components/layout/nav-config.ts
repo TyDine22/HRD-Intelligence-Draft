@@ -41,6 +41,14 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [{ label: "Dashboard", href: "/dashboard", icon: ChartPieIcon, roles: ALL }],
   },
   {
+    label: "Workspace",
+    items: [
+      { label: "Data Management", href: "/files", icon: FolderOpenIcon, roles: ALL },
+      { label: "AI Chatbot", href: "/chat", icon: ChatBubbleLeftRightIcon, roles: ALL },
+      { label: "AI Agents", href: "/agents", icon: BoltIcon, roles: ADMIN },
+    ],
+  },
+  {
     label: "Students",
     items: [
       { label: "Students", href: "/students", icon: UsersIcon, roles: ALL },
@@ -61,9 +69,6 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Workspace",
     items: [
-      { label: "Data Management", href: "/files", icon: FolderOpenIcon, roles: ALL },
-      { label: "AI Chatbot", href: "/chat", icon: ChatBubbleLeftRightIcon, roles: ALL },
-      { label: "AI Agents", href: "/agents", icon: BoltIcon, roles: ADMIN },
       // { label: "Notifications", href: "/notifications", icon: BellIcon, roles: ALL, badgeKey: "notifications" },
       { label: "Overtime Reports", href: "/overtime", icon: DocumentDuplicateIcon, roles: ["INSTRUCTOR"] },
     ],

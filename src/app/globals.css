@@ -7,7 +7,7 @@
   --radius: 0.75rem;
 
   /* ---- HRD Intelligence palette (logo blue #03528D · logo red #ED1C2E) ---- */
-  --background: #f8fafd;            /* Backgrounds/subtle   */
+  --background: #f4f5f5;            /* Backgrounds/subtle   */
   --foreground: #121920;            /* Text/heading         */
   --card: #ffffff;                  /* Backgrounds/surface  */
   --card-foreground: #121920;
