@@ -70,7 +70,7 @@ const escapeHtml = (v: string | number | null | undefined) =>
  */
 export function exportPdfReport(opts: PdfReportOptions): boolean {
   const { title, subtitle = [], stats = [], columns, rows, footer, numericFrom = columns.length, note, landscape = columns.length > 6 } = opts;
-  const win = window.open("", "_blank", "noopener,noreferrer,width=1100,height=800");
+  const win = window.open("", "_blank", "width=1100,height=800");
   if (!win) return false;
 
   const cell = (v: string | number | null | undefined, i: number, tag: "td" | "th" = "td") =>
@@ -140,6 +140,80 @@ export function exportPdfReport(opts: PdfReportOptions): boolean {
   win.document.write(html);
   win.document.close();
   return true;
+}
+
+export interface PdfHtmlOptions {
+  /** Document title; also the default file name in the "Save as PDF" dialog. */
+  title: string;
+  /** Scoped stylesheet for the document body. */
+  css: string;
+  /** Pre-escaped HTML for the document body. */
+  body: string;
+  /** Class applied to <body> so the scoped stylesheet matches. */
+  bodyClass?: string;
+  landscape?: boolean;
+}
+
+/**
+ * Free-form PDF export: opens a standalone, print-styled HTML document in a new window
+ * and triggers the browser print dialog (choose "Save as PDF"). Returns false when the
+ * popup was blocked so the caller can tell the user.
+ */
+export function exportPdfHtml({ title, css, body, bodyClass = "", landscape = false }: PdfHtmlOptions): boolean {
+  const win = window.open("", "_blank", "width=1100,height=800");
+  if (!win) return false;
+
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>${escapeHtml(title)}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Albert+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  @page { size: A4 ${landscape ? "landscape" : "portrait"}; margin: 14mm 12mm; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  @media screen { body { padding: 24px; background: #e9edf1; } .print-page { background: #fff; max-width: ${landscape ? "1123px" : "794px"}; margin: 0 auto; padding: 14mm 12mm; box-shadow: 0 2px 12px rgba(18,25,32,.12); } }
+${css}
+</style>
+</head>
+<body class="${escapeHtml(bodyClass)}">
+<div class="print-page">${body}</div>
+<script>
+  window.addEventListener("load", function () { setTimeout(function () { window.focus(); window.print(); }, 80); });
+  window.addEventListener("afterprint", function () { window.close(); });
+</script>
+</body>
+</html>`;
+
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+  return true;
+}
+
+export interface ExcelSection {
+  title: string;
+  columns: string[];
+  rows: (string | number | null | undefined)[][];
+}
+
+/** Excel-compatible export with several titled tables stacked on one worksheet. */
+export function exportExcelSections(filename: string, sections: ExcelSection[], sheetName = "Report") {
+  const esc = (v: string | number | null | undefined) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const tables = sections
+    .map(
+      (s) =>
+        `<table><tr><td colspan="${Math.max(1, s.columns.length)}" style="font-weight:bold;font-size:13pt">${esc(s.title)}</td></tr><tr>${s.columns
+          .map((c) => `<th style="background:#f3f5f7;font-weight:bold">${esc(c)}</th>`)
+          .join("")}</tr>${s.rows.map((r) => `<tr>${r.map((v) => `<td>${esc(v)}</td>`).join("")}</tr>`).join("")}</table><br>`
+    )
+    .join("");
+  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>${esc(sheetName)}</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>${tables}</body></html>`;
+  download(new Blob([html], { type: "application/vnd.ms-excel" }), filename.endsWith(".xls") ? filename : `${filename}.xls`);
 }
 
 /** Mock ZIP export – produces a manifest file so the flow can be exercised without a backend. */
