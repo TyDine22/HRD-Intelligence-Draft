@@ -140,7 +140,7 @@ export function DashboardView() {
                 ))}
               </SelectContent>
             </Select>
-            {isAdmin && <ReportExportDialog />}
+            {isAdmin && <ReportExportDialog generation={generation} />}
           </>
         }
       />

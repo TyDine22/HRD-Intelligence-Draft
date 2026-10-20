@@ -1,118 +1,112 @@
 "use client";
 
 import * as React from "react";
-import { ArrowDownTrayIcon, ArrowLeftIcon, DocumentTextIcon, EyeIcon, PrinterIcon, TableCellsIcon } from "@heroicons/react/24/outline";
+import { ArrowDownTrayIcon, CalendarIcon, ChevronLeftIcon, ChevronRightIcon, PrinterIcon } from "@heroicons/react/24/outline";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { exportCsv, exportPdf } from "@/lib/utils/export";
-import { ATTENDANCE, getStudentStats } from "@/lib/data/academics";
-import { STUDENTS } from "@/lib/data/students";
-import { TODAY, addDays } from "@/lib/data/seed";
+import { useAppStore } from "@/lib/store/app-store";
+import { exportExcelSections, exportPdfHtml } from "@/lib/utils/export";
+import {
+  GENERATION_OPTIONS,
+  REPORT_CSS,
+  REPORT_PERIODS,
+  REPORT_SECTIONS,
+  buildDashboardReport,
+  excelSections,
+  paginate,
+  renderBlocks,
+  renderDocument,
+  renderFooter,
+  renderHeader,
+  type ReportPeriod,
+  type SectionId,
+} from "@/lib/reports/dashboard-report";
 import { cn } from "@/lib/utils";
 
-type Range = "week" | "month" | "custom";
-type Format = "csv" | "pdf";
-type Step = "options" | "preview";
+type Format = "pdf" | "excel";
 
-const COLUMNS = ["Student ID", "Name", "Class", "Attendance %", "Avg score", "Extra hours"];
-const NUMERIC_FROM = 3; // columns from this index onward are right-aligned numbers
-const PREVIEW_LIMIT = 50;
+const DEFAULT_SECTIONS = REPORT_SECTIONS.filter((s) => s.defaultOn).map((s) => s.id);
 
-interface ReportRow {
-  id: string;
-  name: string;
-  classroom: string;
-  attendance: number;
-  averageScore: number;
-  extraHours: number;
-}
+const FORMATS: { id: Format; label: string }[] = [
+  { id: "pdf", label: "PDF report" },
+  { id: "excel", label: "Excel data" },
+];
 
-function buildReport(from: string, to: string): ReportRow[] {
-  return STUDENTS.filter((s) => s.status === "active").map((s) => {
-    const att = ATTENDANCE.filter((a) => a.studentId === s.id && a.date >= from && a.date <= to);
-    const present = att.filter((a) => a.status === "Present" || a.status === "Late").length;
-    const st = getStudentStats(s.id);
-    return {
-      id: s.id,
-      name: s.name,
-      classroom: s.classroom,
-      attendance: att.length ? Math.round((present / att.length) * 1000) / 10 : 0,
-      averageScore: st.averageScore,
-      extraHours: st.extraClassHours,
-    };
-  });
-}
-
-const toCells = (r: ReportRow): (string | number)[] => [r.id, r.name, r.classroom, r.attendance, r.averageScore, r.extraHours];
-
-export function ReportExportDialog() {
+export function ReportExportDialog({ generation: initialGeneration = "all" }: { generation?: string }) {
   const { toast } = useToast();
+  const { alumni } = useAppStore();
+
   const [open, setOpen] = React.useState(false);
-  const [step, setStep] = React.useState<Step>("options");
-  const [range, setRange] = React.useState<Range>("week");
-  const [format, setFormat] = React.useState<Format>("csv");
-  const [from, setFrom] = React.useState(addDays(TODAY, -7));
-  const [to, setTo] = React.useState(TODAY);
-  /** Set when the user chose PDF: the print dialog opens only after this dialog has fully closed. */
-  const printOnClose = React.useRef(false);
-
-  const resolved = React.useMemo(() => {
-    if (range === "week") return { from: addDays(TODAY, -7), to: TODAY };
-    if (range === "month") return { from: addDays(TODAY, -30), to: TODAY };
-    return { from, to };
-  }, [range, from, to]);
-
-  const rows = React.useMemo(() => (step === "preview" ? buildReport(resolved.from, resolved.to) : []), [step, resolved.from, resolved.to]);
-  const filename = `dashboard-report_${resolved.from}_${resolved.to}.${format}`;
-
-  const summary = React.useMemo(() => {
-    if (!rows.length) return { attendance: 0, score: 0, hours: 0 };
-    const avg = (pick: (r: ReportRow) => number) => Math.round((rows.reduce((a, r) => a + pick(r), 0) / rows.length) * 10) / 10;
-    return {
-      attendance: avg((r) => r.attendance),
-      score: avg((r) => r.averageScore),
-      hours: rows.reduce((a, r) => a + r.extraHours, 0),
-    };
-  }, [rows]);
+  const [generation, setGeneration] = React.useState<string>(initialGeneration);
+  const [period, setPeriod] = React.useState<ReportPeriod>("term");
+  const [sections, setSections] = React.useState<SectionId[]>(DEFAULT_SECTIONS);
+  const [format, setFormat] = React.useState<Format>("pdf");
+  const [page, setPage] = React.useState(0);
 
   const handleOpenChange = (next: boolean) => {
     setOpen(next);
-    if (next) setStep("options");
+    if (next) {
+      // Mirror the dashboard's current generation filter each time the dialog opens.
+      setGeneration(initialGeneration);
+      setPage(0);
+    }
   };
 
-  /** Runs once the dialog has fully closed: reset the wizard and, if requested, open the print dialog. */
-  const handleClosed = () => {
-    setStep("options");
-    if (!printOnClose.current) return;
-    printOnClose.current = false;
-    setTimeout(exportPdf, 50);
+  const doc = React.useMemo(
+    () =>
+      open
+        ? buildDashboardReport({
+            generation: generation === "all" ? "all" : Number(generation),
+            period,
+            // Keep the report in dashboard order regardless of click order.
+            sections: REPORT_SECTIONS.filter((s) => sections.includes(s.id)).map((s) => s.id),
+            alumni,
+          })
+        : null,
+    [open, generation, period, sections, alumni]
+  );
+  const pages = React.useMemo(() => (doc ? paginate(doc) : []), [doc]);
+  const pageCount = Math.max(1, pages.length);
+  const current = Math.min(page, pageCount - 1);
+
+  const previewHtml = React.useMemo(() => {
+    if (!doc) return "";
+    const blocks = pages[current] ?? [];
+    return (current === 0 ? renderHeader(doc) : "") + renderBlocks(blocks) + (current === pageCount - 1 ? renderFooter(doc) : "");
+  }, [doc, pages, current, pageCount]);
+
+  const toggle = (id: SectionId, on: boolean) => {
+    setSections((prev) => (on ? [...prev, id] : prev.filter((s) => s !== id)));
+    setPage(0);
   };
 
   const download = () => {
+    if (!doc) return;
     if (format === "pdf") {
-      // window.print() blocks the main thread, so calling it while the dialog is still
-      // animating out leaves the overlay stuck. Defer it until the content has unmounted.
-      printOnClose.current = true;
+      const opened = exportPdfHtml({ title: doc.title, css: REPORT_CSS, body: renderDocument(doc), bodyClass: "hrd-report" });
+      if (!opened) {
+        toast({ title: "Pop-up blocked", description: "Allow pop-ups for this site to export the PDF report.", variant: "error" });
+        return;
+      }
       handleOpenChange(false);
       return;
     }
-    exportCsv(filename, COLUMNS, rows.map(toCells));
+    const tables = excelSections(doc);
+    exportExcelSections(doc.filename, tables, "Dashboard");
     toast({
-      title: "Report exported",
-      description: `${filename} downloaded (${rows.length} rows).`,
+      title: "Excel exported",
+      description: `${doc.filename}.xls · ${tables.length} ${tables.length === 1 ? "table" : "tables"}`,
       variant: "success",
     });
     handleOpenChange(false);
   };
 
-  const invalidRange = range === "custom" && from > to;
+  const none = sections.length === 0;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -122,189 +116,157 @@ export function ReportExportDialog() {
         </Button>
       </DialogTrigger>
 
-      <DialogContent className={cn(step === "preview" && "sm:max-w-3xl")} onCloseAutoFocus={handleClosed}>
-        {step === "options" ? (
-          <>
-            <DialogHeader>
-              <DialogTitle>Export dashboard report</DialogTitle>
-              <DialogDescription>Filter by week, month or a custom date range and choose the output format.</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4">
-              <div className="grid gap-2">
-                <Label>Date range</Label>
-                <Select value={range} onValueChange={(v) => setRange(v as Range)}>
+      <DialogContent className="flex max-h-[calc(100vh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl">
+        <DialogHeader className="border-b px-6 py-5 text-left">
+          <DialogTitle className="text-xl">Export report</DialogTitle>
+          <DialogDescription>Choose what to include, check the preview, then download.</DialogDescription>
+        </DialogHeader>
+
+        <div className="grid min-h-0 flex-1 overflow-y-auto md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] md:overflow-hidden">
+          {/* Options */}
+          <div className="grid min-w-0 content-start gap-6 px-6 py-5 md:overflow-y-auto">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid min-w-0 gap-2">
+                <Label>Generation</Label>
+                <Select value={generation} onValueChange={(v) => { setGeneration(v); setPage(0); }}>
                   <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="week">This week</SelectItem>
-                    <SelectItem value="month">This month</SelectItem>
-                    <SelectItem value="custom">Custom range</SelectItem>
+                    {GENERATION_OPTIONS.map((g) => (
+                      <SelectItem key={String(g.value)} value={String(g.value)}>
+                        {g.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
-              {range === "custom" && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="grid gap-2">
-                    <Label htmlFor="from">From</Label>
-                    <Input id="from" type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="to">To</Label>
-                    <Input id="to" type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)} />
-                  </div>
-                </div>
-              )}
-              <div className="grid gap-2">
-                <Label>Format</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(
-                    [
-                      {
-                        id: "csv",
-                        label: "CSV",
-                        hint: "Spreadsheet data",
-                        icon: TableCellsIcon,
-                      },
-                      {
-                        id: "pdf",
-                        label: "PDF",
-                        hint: "Printable dashboard",
-                        icon: DocumentTextIcon,
-                      },
-                    ] as const
-                  ).map((f) => (
+              <div className="grid min-w-0 gap-2">
+                <Label>Period</Label>
+                <Select value={period} onValueChange={(v) => { setPeriod(v); setPage(0); }}>
+                  <SelectTrigger className="w-full [&>svg:last-child]:hidden">
+                    <SelectValue />
+                    <CalendarIcon className="text-muted-foreground ml-auto size-4 shrink-0" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {REPORT_PERIODS.map((p) => (
+                      <SelectItem key={p.value} value={p.value}>
+                        {p.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <fieldset className="grid gap-1">
+              <legend className="text-muted-foreground mb-2 text-[11px] font-semibold tracking-wider uppercase">Include sections</legend>
+              {REPORT_SECTIONS.map((s) => {
+                const checked = sections.includes(s.id);
+                return (
+                  <label
+                    key={s.id}
+                    htmlFor={`section-${s.id}`}
+                    className={cn(
+                      "hover:bg-accent/60 -mx-2 flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 transition-colors",
+                      checked ? "text-foreground" : "text-foreground/80"
+                    )}
+                  >
+                    <Checkbox id={`section-${s.id}`} checked={checked} onCheckedChange={(v) => toggle(s.id, v === true)} className="size-[18px]" />
+                    <span className="text-sm">{s.label}</span>
+                    <span className="text-muted-foreground ml-auto hidden text-xs sm:inline">{s.hint}</span>
+                  </label>
+                );
+              })}
+            </fieldset>
+
+            <div className="grid gap-2">
+              <p className="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">Format</p>
+              <div role="tablist" className="bg-muted grid grid-cols-2 gap-1 rounded-xl p-1">
+                {FORMATS.map((f) => {
+                  const active = format === f.id;
+                  return (
                     <button
                       key={f.id}
                       type="button"
+                      role="tab"
+                      aria-selected={active}
                       onClick={() => setFormat(f.id)}
                       className={cn(
-                        "flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors",
-                        format === f.id ? "border-primary bg-primary/10 text-primary" : "hover:bg-accent",
+                        "focus-visible:ring-ring/50 cursor-pointer rounded-lg px-3 py-2 text-sm font-medium transition-all outline-none focus-visible:ring-[3px]",
+                        active ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
                       )}
                     >
-                      <f.icon className="size-5 shrink-0" />
-                      <span className="min-w-0">
-                        <span className="block text-sm font-semibold">{f.label}</span>
-                        <span className={cn("block text-xs", format === f.id ? "text-primary/80" : "text-muted-foreground")}>{f.hint}</span>
-                      </span>
+                      {f.label}
                     </button>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
+              <p className="text-muted-foreground text-xs">PDF is a formatted report for sharing. Excel exports the raw numbers behind each section.</p>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => handleOpenChange(false)}>
-                Cancel
-              </Button>
-              <Button onClick={() => setStep("preview")} disabled={invalidRange}>
-                <EyeIcon /> Preview
-              </Button>
-            </DialogFooter>
-          </>
-        ) : (
-          <>
-            <DialogHeader>
-              <DialogTitle>Preview report</DialogTitle>
-              <DialogDescription>
-                Check the data below before downloading.{" "}
-                {format === "pdf" ? "The PDF is produced by the browser print dialog and includes the full dashboard." : "The CSV will contain exactly these rows."}
-              </DialogDescription>
-            </DialogHeader>
+          </div>
 
-            <div className="grid gap-3">
-              <div className="bg-muted/50 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg px-4 py-3 text-sm">
-                <span className="flex min-w-0 items-center gap-2">
-                  {format === "pdf" ? <DocumentTextIcon className="text-muted-foreground size-4 shrink-0" /> : <TableCellsIcon className="text-muted-foreground size-4 shrink-0" />}
-                  <span className="truncate font-medium" title={filename}>
-                    {filename}
-                  </span>
-                </span>
-                <span className="text-muted-foreground tabular-nums">
-                  {resolved.from} → {resolved.to}
-                </span>
-                <Badge variant="info" className="ml-auto tabular-nums">
-                  {rows.length} {rows.length === 1 ? "student" : "students"}
-                </Badge>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { label: "Avg attendance", value: `${summary.attendance}%` },
-                  { label: "Avg score", value: summary.score },
-                  { label: "Extra hours", value: summary.hours },
-                ].map((k) => (
-                  <div key={k.label} className="rounded-lg border px-3 py-2">
-                    <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">{k.label}</p>
-                    <p className="text-lg font-semibold tabular-nums">{k.value}</p>
-                  </div>
-                ))}
-              </div>
-
-              <div className="overflow-hidden rounded-lg border">
-                <div className="max-h-[45vh] overflow-auto [&_[data-slot=table-container]]:overflow-visible">
-                  <Table>
-                    <TableHeader className="bg-muted/60 sticky top-0 z-10 backdrop-blur">
-                      <TableRow>
-                        {COLUMNS.map((c, i) => (
-                          <TableHead key={c} className={cn("whitespace-nowrap", i >= NUMERIC_FROM && "text-right")}>
-                            {c}
-                          </TableHead>
-                        ))}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {rows.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={COLUMNS.length} className="text-muted-foreground py-10 text-center">
-                            No active students in this range.
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        rows.slice(0, PREVIEW_LIMIT).map((r) => (
-                          <TableRow key={r.id}>
-                            {toCells(r).map((v, i) => (
-                              <TableCell key={COLUMNS[i]} className={cn("whitespace-nowrap", i >= NUMERIC_FROM && "text-right tabular-nums", i === 1 && "font-medium")}>
-                                {i === 3 ? `${v}%` : v}
-                              </TableCell>
-                            ))}
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-                {rows.length > PREVIEW_LIMIT && (
-                  <p className="text-muted-foreground border-t px-3 py-2 text-xs">
-                    Showing the first {PREVIEW_LIMIT} of {rows.length} rows. The download includes all rows.
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <DialogFooter className="sm:justify-between">
-              <Button variant="ghost" onClick={() => setStep("options")}>
-                <ArrowLeftIcon /> Back
-              </Button>
-              <div className="flex flex-col-reverse gap-2 sm:flex-row">
-                <Button variant="outline" onClick={() => handleOpenChange(false)}>
-                  Cancel
+          {/* Preview */}
+          <div className="bg-muted/40 flex min-w-0 flex-col border-t md:min-h-0 md:border-t-0 md:border-l">
+            <div className="flex items-center justify-between gap-3 px-6 pt-5 pb-3">
+              <h3 className="font-semibold">Preview</h3>
+              <div className="text-muted-foreground flex items-center gap-1 text-sm tabular-nums">
+                <Button variant="ghost" size="icon" className="size-7" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={current === 0} aria-label="Previous page">
+                  <ChevronLeftIcon />
                 </Button>
-                <Button onClick={download} disabled={format === "csv" && rows.length === 0}>
-                  {format === "pdf" ? (
-                    <>
-                      <PrinterIcon /> Print / Save PDF
-                    </>
-                  ) : (
-                    <>
-                      <ArrowDownTrayIcon /> Download CSV
-                    </>
-                  )}
+                <span>
+                  Page {current + 1} of {pageCount}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7"
+                  onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+                  disabled={current >= pageCount - 1}
+                  aria-label="Next page"
+                >
+                  <ChevronRightIcon />
                 </Button>
               </div>
-            </DialogFooter>
-          </>
-        )}
+            </div>
+            <div className="overflow-x-auto px-6 pb-6 md:min-h-0 md:flex-1 md:overflow-auto">
+              <style>{REPORT_CSS}</style>
+              {none ? (
+                <div className="text-muted-foreground flex h-full min-h-56 items-center justify-center rounded-xl border border-dashed text-center text-sm">
+                  Select at least one section to preview the report.
+                </div>
+              ) : (
+                <div
+                  className="hrd-report mx-auto w-full min-w-[480px] max-w-[560px] rounded-md bg-white p-6 shadow-[0_1px_2px_rgba(18,25,32,0.06),0_8px_24px_-12px_rgba(18,25,32,0.18)] md:min-h-full"
+                  // Preview HTML is generated locally from seed data with every value escaped.
+                  dangerouslySetInnerHTML={{ __html: previewHtml }}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col-reverse gap-3 border-t px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-muted-foreground text-sm tabular-nums">
+            {sections.length} {sections.length === 1 ? "section" : "sections"} · about {pageCount} {pageCount === 1 ? "page" : "pages"} · {format === "pdf" ? "PDF" : "Excel"}
+          </p>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row">
+            <Button variant="outline" onClick={() => handleOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button onClick={download} disabled={none}>
+              {format === "pdf" ? (
+                <>
+                  <PrinterIcon /> Download PDF
+                </>
+              ) : (
+                <>
+                  <ArrowDownTrayIcon /> Download Excel
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );
