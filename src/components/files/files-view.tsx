@@ -1,12 +1,10 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowDownTrayIcon,
   ArrowsRightLeftIcon,
-  ChatBubbleLeftRightIcon,
   ChevronRightIcon,
   CloudArrowUpIcon,
   DocumentDuplicateIcon,
@@ -45,6 +43,8 @@ import { exportText, exportZipManifest } from "@/lib/utils/export";
 import type { FileNode, FilePermission } from "@/lib/data/types";
 import { cn } from "@/lib/utils";
 import { FileIcon } from "./file-icon";
+import { ASK_AI_PANEL, AskAiPanel } from "./ask-ai-panel";
+import { useDocChat } from "@/lib/store/doc-chat-store";
 
 type Access = "owner" | "editor" | "viewer";
 type DialogState =
@@ -71,6 +71,8 @@ export function FilesView() {
   const [moveTarget, setMoveTarget] = React.useState<string>("root");
   const [shareUser, setShareUser] = React.useState("");
   const [sharePerm, setSharePerm] = React.useState<FilePermission>("viewer");
+  const [aiOpen, setAiOpen] = React.useState(false);
+  const { setFiles: setAiFiles } = useDocChat(ASK_AI_PANEL);
   const fileInput = React.useRef<HTMLInputElement>(null);
 
   const byId = React.useMemo(() => new Map(files.map((f) => [f.id, f])), [files]);
@@ -203,6 +205,14 @@ export function FilesView() {
   const canWriteHere = currentAccess === "owner" || currentAccess === "editor";
   const shareDialogNode = dialog?.type === "share" ? byId.get(dialog.node.id) : undefined;
 
+  // Opens the Ask AI panel, attaching the given documents to the conversation
+  const openAskAi = React.useCallback((ids: string[] = []) => {
+    if (ids.length) setAiFiles((prev) => [...prev, ...ids.filter((id) => !prev.includes(id))].slice(0, 10));
+    setAiOpen(true);
+  }, [setAiFiles]);
+
+  const accessibleFiles = React.useMemo(() => files.filter((f) => f.kind === "file" && access(f)), [files, access]);
+
   const renderActions = (node: FileNode) => {
     const a = access(node);
     const canEdit = a === "owner" || a === "editor";
@@ -213,12 +223,12 @@ export function FilesView() {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
           {node.kind === "folder" ? (
-            <DropdownMenuItem asChild>
-              <Link href={`/chat?folder=${node.id}`}><ChatBubbleLeftRightIcon /> Chat with this folder</Link>
+            <DropdownMenuItem onSelect={() => openAskAi(files.filter((f) => f.parentId === node.id && f.kind === "file").map((f) => f.id))}>
+              <SparklesIcon /> Ask AI about this folder
             </DropdownMenuItem>
           ) : (
-            <DropdownMenuItem asChild>
-              <Link href={`/files/${node.id}`}><SparklesIcon /> Open & ask AI</Link>
+            <DropdownMenuItem onSelect={() => openAskAi([node.id])}>
+              <SparklesIcon /> Ask AI about this file
             </DropdownMenuItem>
           )}
           <DropdownMenuItem onSelect={() => (node.kind === "folder" ? exportZipManifest(node.name, files.filter((f) => descendants(node.id).has(f.id) && f.id !== node.id).map((f) => f.name)) : download(node))}>
@@ -252,13 +262,15 @@ export function FilesView() {
         actions={
           <>
             <input ref={fileInput} type="file" multiple accept=".txt,.md,.xlsx,.csv,.pdf,.docx,.pptx,.png,.jpeg,.jpg" className="hidden" onChange={onUpload} />
+            <Button onClick={() => (aiOpen ? setAiOpen(false) : openAskAi())} className={cn("from-primary to-chart-5 bg-gradient-to-r shadow-md shadow-primary/20", aiOpen && "ring-primary/30 ring-4")}><SparklesIcon /> Ask AI</Button>
             <Button variant="outline" disabled={!canWriteHere} onClick={() => { setNameInput(""); setDialog({ type: "new-folder" }); }}><FolderPlusIcon /> New folder</Button>
             <Button disabled={!canWriteHere} onClick={() => fileInput.current?.click()}><CloudArrowUpIcon /> Upload</Button>
           </>
         }
       />
 
-      <div className="bg-card rounded-2xl shadow-sm">
+      <div className="flex items-start gap-6">
+      <div className="bg-card min-w-0 flex-1 rounded-2xl shadow-sm">
         <div className="flex flex-col gap-3 border-b p-4">
           <nav className="flex flex-wrap items-center gap-1 text-sm" aria-label="Breadcrumb">
             <button type="button" onClick={() => { setCurrent(null); setQuery(""); }} className={cn("hover:bg-accent flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5", current === null && "font-semibold")}>
@@ -361,6 +373,17 @@ export function FilesView() {
           </div>
         )}
         <p className="text-muted-foreground border-t px-4 py-2.5 text-xs">{listing.length} item{listing.length === 1 ? "" : "s"} · You can only see documents you own or that were shared with you.</p>
+      </div>
+
+      {/* Ask AI: docked beside the files on desktop, full-screen sheet on mobile */}
+      {aiOpen && (
+        <AskAiPanel
+          onClose={() => setAiOpen(false)}
+          currentFolder={current}
+          accessibleFiles={accessibleFiles}
+          className="fixed inset-2 z-50 sm:inset-auto sm:top-20 sm:right-4 sm:bottom-4 sm:w-[400px] xl:sticky xl:top-20 xl:right-auto xl:bottom-auto xl:z-auto xl:h-[calc(100dvh-13rem)] xl:min-h-[480px] xl:w-[400px] xl:shrink-0"
+        />
+      )}
       </div>
 
       {/* Name dialog (new folder / rename) */}

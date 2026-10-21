@@ -26,9 +26,10 @@ import { formatBytes } from "@/lib/data/files";
 import { userById } from "@/lib/data/users";
 import { formatDate } from "@/lib/utils/format";
 import { exportText } from "@/lib/utils/export";
-import type { ChatScope, FileNode } from "@/lib/data/types";
+import type { FileNode } from "@/lib/data/types";
 import { cn } from "@/lib/utils";
-import { AssistantAvatar, MessageBubble, ThinkingBubble, useAssistant } from "../../components/chat/chat-parts";
+import { AssistantAvatar, MessageBubble, ThinkingBubble } from "@/components/chat/chat-parts";
+import { useDocChat } from "@/lib/store/doc-chat-store";
 import { FileIcon } from "./file-icon";
 
 const FILE_PROMPTS = [
@@ -41,23 +42,21 @@ const FILE_PROMPTS = [
 /** Google Drive–style viewer: document preview on the left, an assistant scoped to this one file on the right. */
 export function FileChatView({ id }: { id: string }) {
   const { user } = useAuth();
-  const { files, sessions } = useAppStore();
+  const { files } = useAppStore();
   const { toast } = useToast();
   const node = files.find((f) => f.id === id && f.kind === "file");
-  const scope = React.useMemo<ChatScope>(() => ({ type: "folder", folderId: node?.parentId ?? "", fileIds: [id] }), [node?.parentId, id]);
-  const { send, thinking } = useAssistant(scope);
+  const { chat, send } = useDocChat(`file:${id}`);
+  const thinking = chat.thinking;
 
   const [input, setInput] = React.useState("");
   const [panelOpen, setPanelOpen] = React.useState(true);
   const [mobileTab, setMobileTab] = React.useState<"preview" | "chat">("preview");
   const bottomRef = React.useRef<HTMLDivElement>(null);
 
-  // Re-open the latest conversation about this exact file, if there is one
-  const session = sessions.find((s) => s.scope.type === "folder" && s.scope.fileIds.length === 1 && s.scope.fileIds[0] === id) ?? null;
 
   React.useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [session?.messages.length, thinking]);
+  }, [chat.messages.length, thinking]);
 
   const trail = React.useMemo(() => {
     const out: FileNode[] = [];
@@ -82,7 +81,7 @@ export function FileChatView({ id }: { id: string }) {
   }
 
   const submit = (text?: string) => {
-    if (send(text ?? input, session, `Ask · ${node.name}`)) setInput("");
+    if (send(text ?? input, [node])) setInput("");
     setMobileTab("chat");
   };
 
@@ -151,7 +150,7 @@ export function FileChatView({ id }: { id: string }) {
             </div>
 
             <div className="scrollbar-thin flex-1 overflow-y-auto px-4 pb-4">
-              {!session || session.messages.length === 0 ? (
+              {chat.messages.length === 0 ? (
                 <div className="flex h-full flex-col justify-end gap-3">
                   <div className="from-primary/10 to-chart-5/10 rounded-2xl bg-gradient-to-br p-4">
                     <p className="text-sm font-semibold">I&apos;ve read this document.</p>
@@ -165,7 +164,7 @@ export function FileChatView({ id }: { id: string }) {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {session.messages.map((m) => <MessageBubble key={m.id} message={m} sessionId={session.id} compact />)}
+                  {chat.messages.map((m) => <MessageBubble key={m.id} message={m} sessionId={`file:${id}`} compact />)}
                   {thinking && <ThinkingBubble compact />}
                   <div ref={bottomRef} />
                 </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { ArrowsPointingOutIcon, ChevronDownIcon, PaperAirplaneIcon, PlusIcon, SparklesIcon } from "@heroicons/react/24/outline";
 
 import { Button } from "@/components/ui/button";
@@ -12,13 +12,14 @@ import { useAppStore } from "@/lib/store/app-store";
 import { SUGGESTED_PROMPTS } from "@/lib/data/chat";
 import type { ChatScope } from "@/lib/data/types";
 import { cn } from "@/lib/utils";
-import { MessageBubble, ThinkingBubble, useAssistant } from "../chat/chat-parts";
+import { MessageBubble, ThinkingBubble, useAssistant } from "./chat-parts";
 
 const GENERAL_SCOPE: ChatScope = { type: "general" };
 
 /** General-purpose assistant that floats over every page. Expanding opens the same conversation on /chat. */
 export function FloatingChat() {
   const router = useRouter();
+  const pathname = usePathname();
   const { user } = useAuth();
   const { sessions } = useAppStore();
   const { send, thinking } = useAssistant(GENERAL_SCOPE);
@@ -46,6 +47,9 @@ export function FloatingChat() {
     setOpen(false);
     router.push(session ? `/chat?session=${session.id}` : "/chat");
   };
+
+  // Data Management has its own document assistant (Ask AI), so the general one steps aside there
+  if (pathname?.startsWith("/files")) return null;
 
   return (
     <div className="no-print fixed right-4 bottom-4 z-50 flex flex-col items-end gap-3 sm:right-6 sm:bottom-6">

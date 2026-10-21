@@ -168,10 +168,6 @@ export function Topbar() {
             ))}
             {mine.length === 0 && <p className="text-muted-foreground px-3 py-6 text-center text-sm">No notifications</p>}
           </div>
-          <DropdownMenuSeparator className="my-0" />
-          <Link href="/notifications" className="text-primary block px-3 py-2 text-center text-xs font-medium hover:underline">
-            View all notifications
-          </Link>
         </DropdownMenuContent>
       </DropdownMenu>
 
